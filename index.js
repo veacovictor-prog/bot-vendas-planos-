@@ -34,7 +34,7 @@ const config = {
   logChannelId: process.env.LOG_CHANNEL_ID,
   ticketCategoryId: process.env.TICKET_CATEGORY_ID,
   staffRoleId: process.env.STAFF_ROLE_ID,
-  pixKey: process.env.PIX_KEY || "Configure a chave Pix no .env",
+  pixKey: process.env.PIX_KEY || "",
   storeName: process.env.STORE_NAME || "Loja de Bots",
   supportUrl: process.env.SUPPORT_URL || ""
 };
@@ -92,6 +92,10 @@ const commands = [
   new SlashCommandBuilder()
     .setName("painel-config")
     .setDescription("Envia o painel de configuracao dos sistemas extras.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  new SlashCommandBuilder()
+    .setName("painel-loja")
+    .setDescription("Envia o painel para configurar a loja, Pix, logs e tickets.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder()
     .setName("planos")
@@ -165,9 +169,16 @@ async function getAllSettings() {
   return {};
 }
 
-async function getGuildSettings(guildId) {
-  const settings = await getAllSettings();
-  return settings[guildId] || {
+function defaultGuildSettings() {
+  return {
+    shop: {
+      storeName: config.storeName,
+      pixKey: config.pixKey,
+      supportUrl: config.supportUrl,
+      logChannelId: config.logChannelId || "",
+      ticketCategoryId: config.ticketCategoryId || "",
+      staffRoleId: config.staffRoleId || ""
+    },
     welcome: {
       enabled: false,
       channelId: "",
@@ -182,6 +193,31 @@ async function getGuildSettings(guildId) {
       minAccountAgeDays: 7,
       logOnly: true
     }
+  };
+}
+
+async function getGuildSettings(guildId) {
+  const settings = await getAllSettings();
+  const current = settings[guildId] || {};
+  const defaults = defaultGuildSettings();
+
+  return {
+    shop: { ...defaults.shop, ...(current.shop || {}) },
+    welcome: { ...defaults.welcome, ...(current.welcome || {}) },
+    autoRole: { ...defaults.autoRole, ...(current.autoRole || {}) },
+    antiFake: { ...defaults.antiFake, ...(current.antiFake || {}) }
+  };
+}
+
+async function getShopSettings(guildId) {
+  const settings = await getGuildSettings(guildId);
+  return {
+    storeName: settings.shop?.storeName || config.storeName,
+    pixKey: settings.shop?.pixKey || config.pixKey,
+    supportUrl: settings.shop?.supportUrl || config.supportUrl,
+    logChannelId: settings.shop?.logChannelId || config.logChannelId,
+    ticketCategoryId: settings.shop?.ticketCategoryId || config.ticketCategoryId,
+    staffRoleId: settings.shop?.staffRoleId || config.staffRoleId
   };
 }
 
@@ -225,16 +261,54 @@ function planEmbed(plan) {
     );
 }
 
-function storePanelEmbed(plans) {
+function storePanelEmbed(plans, shop) {
   const description = plans
     .map((plan) => `**${plan.name}** - ${money(plan)}\n${plan.description}`)
     .join("\n\n");
 
   return new EmbedBuilder()
     .setColor(0x111827)
-    .setTitle(config.storeName)
+    .setTitle(shop.storeName)
     .setDescription(description || "Nenhum plano cadastrado.")
     .setFooter({ text: "Escolha um plano abaixo para abrir seu atendimento de compra." });
+}
+
+function shopPanelEmbed(shop) {
+  return new EmbedBuilder()
+    .setColor(0x2563eb)
+    .setTitle("Painel da loja")
+    .setDescription("Configure os dados principais da loja por botoes.")
+    .addFields(
+      { name: "Nome", value: shop.storeName || "Nao configurado", inline: true },
+      { name: "Pix", value: shop.pixKey ? `\`${shop.pixKey}\`` : "Nao configurado", inline: true },
+      { name: "Suporte", value: shop.supportUrl || "Nao configurado", inline: true },
+      { name: "Logs", value: shop.logChannelId ? `<#${shop.logChannelId}>` : "Nao configurado", inline: true },
+      { name: "Categoria tickets", value: shop.ticketCategoryId || "Nao configurado", inline: true },
+      { name: "Staff", value: shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Manage Server", inline: true }
+    );
+}
+
+function shopRows() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("shopcfg:identity")
+        .setLabel("Loja")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("shopcfg:payment")
+        .setLabel("Pix")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("shopcfg:channels")
+        .setLabel("Canais")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("shopcfg:staff")
+        .setLabel("Staff")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
 }
 
 function configPanelEmbed(settings) {
@@ -324,12 +398,12 @@ function paymentRows(orderId) {
   ];
 }
 
-function isStaff(member) {
+function isStaff(member, shop = {}) {
   return member.permissions.has(PermissionFlagsBits.ManageGuild)
-    || (config.staffRoleId && member.roles.cache.has(config.staffRoleId));
+    || (shop.staffRoleId && member.roles.cache.has(shop.staffRoleId));
 }
 
-function orderEmbed(order, plan) {
+function orderEmbed(order, plan, shop) {
   return new EmbedBuilder()
     .setColor(0xf59e0b)
     .setTitle(`Pedido ${order.id}`)
@@ -337,13 +411,13 @@ function orderEmbed(order, plan) {
     .addFields(
       { name: "Cliente", value: `<@${order.userId}>`, inline: true },
       { name: "Status", value: order.status, inline: true },
-      { name: "Pix", value: `\`${config.pixKey}\`` }
+      { name: "Pix", value: `\`${shop.pixKey || "Configure o Pix em /painel-loja"}\`` }
     )
     .setFooter({ text: "Depois de pagar, clique em Enviar comprovante." });
 }
 
-function deliveryEmbed(order, plan) {
-  const supportLine = config.supportUrl ? `\nSuporte: ${config.supportUrl}` : "";
+function deliveryEmbed(order, plan, shop) {
+  const supportLine = shop.supportUrl ? `\nSuporte: ${shop.supportUrl}` : "";
 
   return new EmbedBuilder()
     .setColor(0x22c55e)
@@ -355,12 +429,14 @@ function deliveryEmbed(order, plan) {
 }
 
 async function log(guild, embed) {
-  if (!config.logChannelId) return;
-  const channel = await guild.channels.fetch(config.logChannelId).catch(() => null);
+  const shop = await getShopSettings(guild.id);
+  if (!shop.logChannelId) return;
+  const channel = await guild.channels.fetch(shop.logChannelId).catch(() => null);
   if (channel?.isTextBased()) await channel.send({ embeds: [embed] });
 }
 
 async function createOrderTicket(interaction, plan) {
+  const shop = await getShopSettings(interaction.guildId);
   const orderId = `${Date.now().toString(36)}-${interaction.user.id.slice(-4)}`;
   const guild = interaction.guild;
   const channelName = `compra-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90);
@@ -389,9 +465,9 @@ async function createOrderTicket(interaction, plan) {
     }
   ];
 
-  if (config.staffRoleId) {
+  if (shop.staffRoleId) {
     permissionOverwrites.push({
-      id: config.staffRoleId,
+      id: shop.staffRoleId,
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
@@ -403,7 +479,7 @@ async function createOrderTicket(interaction, plan) {
   const channel = await guild.channels.create({
     name: channelName,
     type: ChannelType.GuildText,
-    parent: config.ticketCategoryId || null,
+    parent: shop.ticketCategoryId || null,
     permissionOverwrites
   });
 
@@ -421,8 +497,8 @@ async function createOrderTicket(interaction, plan) {
 
   await saveOrder(order);
   await channel.send({
-    content: `<@${interaction.user.id}> ${config.staffRoleId ? `<@&${config.staffRoleId}>` : ""}`,
-    embeds: [orderEmbed(order, plan)],
+    content: `<@${interaction.user.id}> ${shop.staffRoleId ? `<@&${shop.staffRoleId}>` : ""}`,
+    embeds: [orderEmbed(order, plan, shop)],
     components: paymentRows(order.id)
   });
 
@@ -439,13 +515,14 @@ async function createOrderTicket(interaction, plan) {
 
 async function sendStorePanel(interaction) {
   const plans = await getPlans();
+  const shop = await getShopSettings(interaction.guildId);
   if (!plans.length) {
     await interaction.reply({ content: "Nenhum plano foi cadastrado em `data/plans.json`.", ephemeral: true });
     return;
   }
 
   await interaction.channel.send({
-    embeds: [storePanelEmbed(plans)],
+    embeds: [storePanelEmbed(plans, shop)],
     components: [planSelect(plans)]
   });
 
@@ -474,6 +551,133 @@ async function sendConfigPanel(interaction) {
   await interaction.reply({ content: "Painel de configuracao enviado.", ephemeral: true });
 }
 
+async function sendShopPanel(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  await interaction.channel.send({
+    embeds: [shopPanelEmbed(shop)],
+    components: shopRows()
+  });
+  await interaction.reply({ content: "Painel da loja enviado.", ephemeral: true });
+}
+
+async function handleShopButton(interaction, action) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode alterar a loja.", ephemeral: true });
+    return;
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`shopcfg-modal:${action}`)
+    .setTitle(`Configurar ${action}`);
+
+  if (action === "identity") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("storeName")
+          .setLabel("Nome da loja")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.storeName || "")
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("supportUrl")
+          .setLabel("Link de suporte/convite")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.supportUrl || "")
+          .setRequired(false)
+      )
+    );
+  }
+
+  if (action === "payment") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("pixKey")
+          .setLabel("Chave Pix")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.pixKey || "")
+          .setRequired(true)
+      )
+    );
+  }
+
+  if (action === "channels") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("logChannelId")
+          .setLabel("ID do canal de logs")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.logChannelId || "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("ticketCategoryId")
+          .setLabel("ID da categoria de tickets")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.ticketCategoryId || "")
+          .setRequired(false)
+      )
+    );
+  }
+
+  if (action === "staff") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("staffRoleId")
+          .setLabel("ID do cargo staff")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.staffRoleId || "")
+          .setRequired(false)
+      )
+    );
+  }
+
+  await interaction.showModal(modal);
+}
+
+async function handleShopModal(interaction, action) {
+  const settings = await getGuildSettings(interaction.guildId);
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode alterar a loja.", ephemeral: true });
+    return;
+  }
+
+  settings.shop = settings.shop || {};
+
+  if (action === "identity") {
+    settings.shop.storeName = interaction.fields.getTextInputValue("storeName").trim();
+    settings.shop.supportUrl = interaction.fields.getTextInputValue("supportUrl").trim();
+  }
+
+  if (action === "payment") {
+    settings.shop.pixKey = interaction.fields.getTextInputValue("pixKey").trim();
+  }
+
+  if (action === "channels") {
+    settings.shop.logChannelId = interaction.fields.getTextInputValue("logChannelId").trim();
+    settings.shop.ticketCategoryId = interaction.fields.getTextInputValue("ticketCategoryId").trim();
+  }
+
+  if (action === "staff") {
+    settings.shop.staffRoleId = interaction.fields.getTextInputValue("staffRoleId").trim();
+  }
+
+  await saveGuildSettings(interaction.guildId, settings);
+  await interaction.reply({
+    content: "Loja configurada.",
+    embeds: [shopPanelEmbed(await getShopSettings(interaction.guildId))],
+    ephemeral: true
+  });
+}
+
 async function handlePlanSelect(interaction) {
   const plans = await getPlans();
   const plan = plans.find((item) => item.id === interaction.values[0]);
@@ -487,7 +691,8 @@ async function handlePlanSelect(interaction) {
 }
 
 async function handleConfigButton(interaction, action) {
-  if (!isStaff(interaction.member)) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
     await interaction.reply({ content: "Apenas a equipe pode alterar configuracoes.", ephemeral: true });
     return;
   }
@@ -580,7 +785,8 @@ async function handleConfigButton(interaction, action) {
 }
 
 async function handleConfigModal(interaction, action) {
-  if (!isStaff(interaction.member)) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
     await interaction.reply({ content: "Apenas a equipe pode alterar configuracoes.", ephemeral: true });
     return;
   }
@@ -676,7 +882,8 @@ async function handleProofModal(interaction, orderId) {
 }
 
 async function handleApprove(interaction, orderId) {
-  if (!isStaff(interaction.member)) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
     await interaction.reply({ content: "Apenas a equipe pode aprovar pedidos.", ephemeral: true });
     return;
   }
@@ -695,14 +902,15 @@ async function handleApprove(interaction, orderId) {
   order.updatedAt = new Date().toISOString();
   await saveOrder(order);
 
-  const embed = deliveryEmbed(order, plan);
+  const embed = deliveryEmbed(order, plan, shop);
   await interaction.channel.send({ content: `<@${order.userId}>`, embeds: [embed] });
   await interaction.reply({ content: "Pedido aprovado.", ephemeral: true });
   await log(interaction.guild, embed);
 }
 
 async function handleReject(interaction, orderId) {
-  if (!isStaff(interaction.member)) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
     await interaction.reply({ content: "Apenas a equipe pode reprovar pedidos.", ephemeral: true });
     return;
   }
@@ -729,7 +937,8 @@ async function handleClose(interaction, orderId) {
     return;
   }
 
-  const canClose = order.userId === interaction.user.id || isStaff(interaction.member);
+  const shop = await getShopSettings(interaction.guildId);
+  const canClose = order.userId === interaction.user.id || isStaff(interaction.member, shop);
   if (!canClose) {
     await interaction.reply({ content: "Voce nao pode fechar este ticket.", ephemeral: true });
     return;
@@ -746,12 +955,18 @@ async function handleClose(interaction, orderId) {
 client.once(Events.ClientReady, async () => {
   console.log(`Online como ${client.user.tag}`);
 
-  if (config.clientId && config.guildId) {
-    const rest = new REST({ version: "10" }).setToken(config.token);
-    await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), { body: commands });
-    console.log("Comandos registrados no servidor.");
-  } else {
-    console.log("CLIENT_ID ou GUILD_ID nao configurado. Slash commands nao foram registrados.");
+  const rest = new REST({ version: "10" }).setToken(config.token);
+  const applicationId = config.clientId || client.user.id;
+
+  if (config.guildId) {
+    await rest.put(Routes.applicationGuildCommands(applicationId, config.guildId), { body: commands });
+    console.log("Comandos registrados no servidor configurado.");
+    return;
+  }
+
+  for (const guild of client.guilds.cache.values()) {
+    await rest.put(Routes.applicationGuildCommands(applicationId, guild.id), { body: commands });
+    console.log(`Comandos registrados em ${guild.name}.`);
   }
 });
 
@@ -760,6 +975,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "setup-loja") await sendStorePanel(interaction);
       if (interaction.commandName === "painel-config") await sendConfigPanel(interaction);
+      if (interaction.commandName === "painel-loja") await sendShopPanel(interaction);
       if (interaction.commandName === "planos") await sendPlans(interaction);
       return;
     }
@@ -771,6 +987,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isButton()) {
       const [, action, orderId] = interaction.customId.split(":");
+      if (interaction.customId.startsWith("shopcfg:")) {
+        await handleShopButton(interaction, action);
+        return;
+      }
       if (interaction.customId.startsWith("config:")) {
         await handleConfigButton(interaction, action);
         return;
@@ -784,6 +1004,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isModalSubmit()) {
       const [, action, orderId] = interaction.customId.split(":");
+      if (interaction.customId.startsWith("shopcfg-modal:")) {
+        await handleShopModal(interaction, action);
+        return;
+      }
       if (interaction.customId.startsWith("config-modal:")) {
         await handleConfigModal(interaction, action);
         return;

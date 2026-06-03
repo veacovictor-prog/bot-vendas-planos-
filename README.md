@@ -5,6 +5,7 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 ## Funcoes
 
 - `/setup-loja`: envia o painel de planos no canal atual.
+- `/painel-loja`: configura nome da loja, Pix, canal de logs, categoria de tickets e cargo staff.
 - `/painel-config`: envia o painel para configurar boas-vindas, auto-cargo e anti-fake.
 - `/planos`: mostra os planos disponiveis.
 - Botao `Comprar`: cria ticket privado para pagamento.
@@ -31,7 +32,7 @@ npm install
 ```
 
 3. Copie `.env.example` para `.env`.
-4. Preencha `DISCORD_TOKEN`, `CLIENT_ID`, `GUILD_ID`, `PIX_KEY`, `STAFF_ROLE_ID`, `TICKET_CATEGORY_ID` e `LOG_CHANNEL_ID`.
+4. Preencha `DISCORD_TOKEN`.
 5. Inicie:
 
 ```bash
@@ -50,7 +51,47 @@ npm start
    - Server Members Intent
    - Message Content Intent, se for expandir o bot depois
 
-### 2. Pegar os IDs
+### 2. Configurar o Railway
+
+No Railway, voce so precisa colocar esta variavel obrigatoria:
+
+```env
+DISCORD_TOKEN=token_do_seu_bot
+```
+
+Tambem recomendo colocar:
+
+```env
+DATA_DIR=/data
+```
+
+Depois crie um **Volume** montado em `/data`.
+
+### 3. Configurar a loja pelo Discord
+
+Depois que o bot ficar online, use no Discord:
+
+```txt
+/painel-loja
+```
+
+Nesse painel voce configura:
+
+- nome da loja
+- chave Pix
+- canal de logs
+- categoria de tickets
+- cargo staff
+- link de suporte
+
+Depois use:
+
+```txt
+/painel-config
+/setup-loja
+```
+
+### 4. Pegar os IDs para o painel
 
 No Discord, ative o modo desenvolvedor:
 
@@ -64,7 +105,7 @@ Depois copie:
 - ID da categoria de tickets: `TICKET_CATEGORY_ID`
 - ID do cargo da equipe: `STAFF_ROLE_ID`
 
-### 3. Enviar o projeto para o GitHub
+### 5. Enviar o projeto para o GitHub
 
 O Railway trabalha melhor puxando de um repositorio GitHub.
 
@@ -72,7 +113,7 @@ O Railway trabalha melhor puxando de um repositorio GitHub.
 2. Envie estes arquivos para ele.
 3. Nao envie seu arquivo `.env`.
 
-### 4. Criar projeto no Railway
+### 6. Criar projeto no Railway
 
 1. Entre em <https://railway.app/>.
 2. Clique em **New Project**.
@@ -80,28 +121,22 @@ O Railway trabalha melhor puxando de um repositorio GitHub.
 4. Selecione o repositorio do bot.
 5. Railway vai detectar Node.js automaticamente.
 
-### 5. Configurar variaveis no Railway
+### 7. Configurar variaveis no Railway
 
 No projeto do Railway, va em:
 
 **Service > Variables**
 
-Adicione:
+Adicione o minimo:
 
 ```env
 DISCORD_TOKEN=token_do_seu_bot
-CLIENT_ID=id_da_aplicacao
-GUILD_ID=id_do_servidor
-LOG_CHANNEL_ID=id_do_canal_de_logs
-TICKET_CATEGORY_ID=id_da_categoria_de_tickets
-STAFF_ROLE_ID=id_do_cargo_staff
-PIX_KEY=sua_chave_pix
-STORE_NAME=Nome da sua loja
-SUPPORT_URL=https://discord.gg/seuconvite
 DATA_DIR=/data
 ```
 
-### 6. Criar volume para salvar dados
+Os dados de loja, Pix, canais e cargo staff voce configura depois pelo comando `/painel-loja`.
+
+### 8. Criar volume para salvar dados
 
 Se voce quiser que pedidos, planos e configuracoes nao sumam em reinicios:
 
@@ -122,7 +157,7 @@ DATA_DIR=/data
 
 Sem volume, o bot ainda roda, mas os arquivos JSON podem ser perdidos quando o Railway recriar o ambiente.
 
-### 7. Fazer deploy
+### 9. Fazer deploy
 
 Depois de configurar as variaveis, clique em **Deploy** ou faca um novo commit no GitHub.
 
@@ -130,10 +165,11 @@ Quando aparecer `Online como NomeDoBot` nos logs, entre no seu servidor e use:
 
 ```txt
 /setup-loja
+/painel-loja
 /painel-config
 ```
 
-### 8. Convidar o bot para o servidor
+### 10. Convidar o bot para o servidor
 
 Use este link, trocando `CLIENT_ID_AQUI` pelo ID da aplicacao:
 
