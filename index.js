@@ -952,21 +952,37 @@ async function handleClose(interaction, orderId) {
   setTimeout(() => interaction.channel.delete("Ticket de compra fechado").catch(() => null), 5000);
 }
 
-client.once(Events.ClientReady, async () => {
-  console.log(`Online como ${client.user.tag}`);
-
+async function registerCommandsForGuild(guild) {
   const rest = new REST({ version: "10" }).setToken(config.token);
   const applicationId = config.clientId || client.user.id;
 
-  if (config.guildId) {
-    await rest.put(Routes.applicationGuildCommands(applicationId, config.guildId), { body: commands });
-    console.log("Comandos registrados no servidor configurado.");
-    return;
-  }
+  await rest.put(Routes.applicationGuildCommands(applicationId, guild.id), { body: commands });
+  console.log(`Slash commands registrados em ${guild.name} (${guild.id}).`);
+}
 
-  for (const guild of client.guilds.cache.values()) {
-    await rest.put(Routes.applicationGuildCommands(applicationId, guild.id), { body: commands });
-    console.log(`Comandos registrados em ${guild.name}.`);
+client.once(Events.ClientReady, async () => {
+  console.log(`Online como ${client.user.tag}`);
+
+  try {
+    if (config.guildId) {
+      const guild = await client.guilds.fetch(config.guildId);
+      await registerCommandsForGuild(guild);
+      return;
+    }
+
+    for (const guild of client.guilds.cache.values()) {
+      await registerCommandsForGuild(guild);
+    }
+  } catch (error) {
+    console.error("Erro ao registrar slash commands:", error);
+  }
+});
+
+client.on(Events.GuildCreate, async (guild) => {
+  try {
+    await registerCommandsForGuild(guild);
+  } catch (error) {
+    console.error(`Erro ao registrar slash commands em ${guild.id}:`, error);
   }
 });
 

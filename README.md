@@ -171,10 +171,21 @@ Quando aparecer `Online como NomeDoBot` nos logs, entre no seu servidor e use:
 
 ### 10. Convidar o bot para o servidor
 
-Use este link, trocando `CLIENT_ID_AQUI` pelo ID da aplicacao:
+Use este link, trocando `CLIENT_ID_AQUI` pelo ID da aplicacao. O trecho `applications.commands` e obrigatorio para os slash commands aparecerem:
 
 ```txt
 https://discord.com/oauth2/authorize?client_id=CLIENT_ID_AQUI&permissions=268487888&integration_type=0&scope=bot+applications.commands
+```
+
+Se os comandos nao aparecerem:
+
+1. Remova o bot do servidor.
+2. Convide de novo usando o link acima.
+3. Reinicie o deploy no Railway.
+4. Confira os logs do Railway. Deve aparecer algo como:
+
+```txt
+Slash commands registrados em NomeDoServidor
 ```
 
 ## Permissoes do bot
