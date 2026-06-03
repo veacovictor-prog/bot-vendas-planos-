@@ -1,0 +1,44 @@
+[
+  {
+    "id": "starter",
+    "name": "Starter",
+    "price": "19,90",
+    "period": "mensal",
+    "description": "Bot simples com comandos basicos, status online e suporte inicial.",
+    "features": [
+      "1 bot Discord",
+      "Instalacao manual",
+      "Suporte basico",
+      "Atualizacoes simples"
+    ],
+    "delivery": "A equipe envia o bot e orienta a instalacao apos confirmar o pagamento."
+  },
+  {
+    "id": "pro",
+    "name": "Pro",
+    "price": "39,90",
+    "period": "mensal",
+    "description": "Bot de vendas, ticket ou moderacao com personalizacao da sua marca.",
+    "features": [
+      "1 bot personalizado",
+      "Comandos slash",
+      "Painel dentro do Discord",
+      "Suporte prioritario"
+    ],
+    "delivery": "A equipe entrega o bot configurado para o servidor do cliente."
+  },
+  {
+    "id": "ultimate",
+    "name": "Ultimate",
+    "price": "79,90",
+    "period": "mensal",
+    "description": "Plano completo para lojas que querem vender 24/7 com automacoes.",
+    "features": [
+      "Bot completo de vendas",
+      "Sistema de tickets",
+      "Logs e painel admin",
+      "Customizacao completa"
+    ],
+    "delivery": "A equipe entrega o bot completo e ajuda na primeira configuracao."
+  }
+]
