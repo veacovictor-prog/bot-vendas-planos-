@@ -7,6 +7,7 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 - `/setup-loja`: envia o painel de planos no canal atual.
 - `/painel-loja`: configura nome da loja, Pix, canal de logs, categoria de tickets e cargo staff.
 - `/painel-config`: envia o painel para configurar boas-vindas, auto-cargo e anti-fake.
+- `/botconfig`: abre o painel central estilo Promisse com loja, tickets, protecao, sorteios, apps e automacoes.
 - `/planos`: mostra os planos disponiveis.
 - `/criar produto`: cria produto com preco, descricao, entrega manual ou automatica e estoque.
 - `/criar campo`: adiciona uma opcao/campo dentro de um produto.
@@ -49,6 +50,9 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 - **Sorteios:** botao de participar, requisito por cargo e encerramento automatico.
 - **Repost automatico:** produto ou painel repostado por intervalo.
 - **Protecao anti-link:** remove links de usuarios sem cargo staff.
+- **Painel botconfig:** menu central com secoes de loja, produtos, tickets, protecao, sorteios, apps e automacoes.
+- **Pagamentos:** Pix, comprovante manual, Mercado Pago e carteira podem ser ligados/desligados no painel.
+- **Protecao anti-bot:** remove bots adicionados quando a protecao estiver ativa.
 - **Apps de clientes:** cliente aprovado conecta o token do bot comprado e altera nome, foto e status.
 - **Boas-vindas:** mensagem customizavel com `{user}` para mencionar o membro.
 - **Auto-cargo:** cargo automatico para novos membros.
@@ -105,10 +109,11 @@ Depois crie um **Volume** montado em `/data`.
 Depois que o bot ficar online, use no Discord:
 
 ```txt
+/botconfig
 /painel-loja
 ```
 
-Nesse painel voce configura:
+No `/botconfig` voce acessa tudo por menu. No painel da loja voce configura:
 
 - nome da loja
 - chave Pix

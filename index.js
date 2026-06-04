@@ -126,6 +126,10 @@ const commands = [
     .setDescription("Envia o painel de configuracao dos sistemas extras.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder()
+    .setName("botconfig")
+    .setDescription("Abre o painel central de configuracao estilo Promisse.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  new SlashCommandBuilder()
     .setName("painel-loja")
     .setDescription("Envia o painel para configurar a loja, Pix, logs e tickets.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
@@ -448,6 +452,13 @@ function defaultGuildSettings() {
       staffRoleId: config.staffRoleId || "",
       clientRoleId: "",
       reviewChannelId: "",
+      salesEnabled: true,
+      paymentMethods: {
+        pix: true,
+        manualProof: true,
+        mercadoPago: false,
+        wallet: false
+      },
       termsRequired: false,
       termsText: "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
       blacklist: []
@@ -477,7 +488,8 @@ function defaultGuildSettings() {
       logOnly: true
     },
     protection: {
-      antiLink: false
+      antiLink: false,
+      antiBot: false
     }
   };
 }
@@ -509,6 +521,13 @@ async function getShopSettings(guildId) {
     staffRoleId: settings.shop?.staffRoleId || config.staffRoleId,
     clientRoleId: settings.shop?.clientRoleId || "",
     reviewChannelId: settings.shop?.reviewChannelId || "",
+    salesEnabled: settings.shop?.salesEnabled !== false,
+    paymentMethods: {
+      pix: settings.shop?.paymentMethods?.pix !== false,
+      manualProof: settings.shop?.paymentMethods?.manualProof !== false,
+      mercadoPago: Boolean(settings.shop?.paymentMethods?.mercadoPago),
+      wallet: Boolean(settings.shop?.paymentMethods?.wallet)
+    },
     termsRequired: Boolean(settings.shop?.termsRequired),
     termsText: settings.shop?.termsText || "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
     blacklist: settings.shop?.blacklist || []
@@ -557,6 +576,21 @@ function brl(value) {
 
 function yesNo(value) {
   return value ? "Ativo" : "Desativado";
+}
+
+function boolFromText(value) {
+  return /^(sim|s|true|1|ativo|ligado|on)$/i.test(String(value || "").trim());
+}
+
+function paymentMethodsText(shop) {
+  const methods = shop.paymentMethods || {};
+  const active = [
+    methods.pix ? "Pix" : null,
+    methods.manualProof ? "Comprovante" : null,
+    methods.mercadoPago ? "Mercado Pago" : null,
+    methods.wallet ? "Carteira" : null
+  ].filter(Boolean);
+  return active.length ? active.join(", ") : "Nenhum ativo";
 }
 
 function shortText(value, fallback = "Nao configurado", size = 900) {
@@ -641,6 +675,8 @@ function shopPanelEmbed(shop) {
     .addFields(
       { name: "Nome", value: shop.storeName || "Nao configurado", inline: true },
       { name: "Pix", value: shop.pixKey ? `\`${shop.pixKey}\`` : "Nao configurado", inline: true },
+      { name: "Vendas", value: shop.salesEnabled ? "Ligadas" : "Desligadas", inline: true },
+      { name: "Pagamentos", value: paymentMethodsText(shop), inline: true },
       { name: "Suporte", value: shop.supportUrl || "Nao configurado", inline: true },
       { name: "Log privada", value: shop.logChannelId ? `<#${shop.logChannelId}>` : "Nao configurado", inline: true },
       { name: "Log publica", value: shop.publicLogChannelId ? `<#${shop.publicLogChannelId}>` : "Nao configurado", inline: true },
@@ -660,7 +696,7 @@ function shopRows() {
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("shopcfg:payment")
-        .setLabel("Pix")
+        .setLabel("Pagamentos")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId("shopcfg:channels")
@@ -675,6 +711,10 @@ function shopRows() {
       new ButtonBuilder()
         .setCustomId("shopcfg:clientrole")
         .setLabel("Cargo cliente")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("shopcfg:sales")
+        .setLabel("Vendas")
         .setStyle(ButtonStyle.Secondary)
     )
   ];
@@ -736,6 +776,203 @@ function supportRows() {
         .setStyle(ButtonStyle.Primary)
     )
   ];
+}
+
+function botConfigEmbed(shop, settings) {
+  return new EmbedBuilder()
+    .setColor(theme.dark)
+    .setTitle(`${shop.storeName || "Loja de Bots"} | Painel`)
+    .setDescription("Configure sua loja, tickets, protecoes, sorteios, automacoes e apps pelo menu abaixo.")
+    .addFields(
+      { name: "Vendas", value: shop.salesEnabled === false ? "Desligadas" : "Ligadas", inline: true },
+      { name: "Pix", value: shop.pixKey ? "Configurado" : "Pendente", inline: true },
+      { name: "Protecao", value: settings.protection?.antiLink ? "Anti-link ativo" : "Basica", inline: true },
+      { name: "Cliente", value: shop.clientRoleId ? `<@&${shop.clientRoleId}>` : "Cargo nao configurado", inline: true },
+      { name: "Staff", value: shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Manage Server", inline: true },
+      { name: "Tickets", value: shop.ticketCategoryId ? `Categoria ${shop.ticketCategoryId}` : "Categoria nao configurada", inline: true }
+    )
+    .setFooter({ text: "Painel central da loja" });
+}
+
+function botConfigRows() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("botcfg:section")
+        .setPlaceholder("Selecione uma secao para configurar")
+        .addOptions(
+          { label: "Gerenciar Produtos", description: "Crie, edite e publique produtos e paineis.", value: "products" },
+          { label: "Personalizar Loja", description: "Nome, Pix, pagamentos, logs e cargos.", value: "store" },
+          { label: "Gerenciar Tickets", description: "Painel de suporte, IA e categoria.", value: "tickets" },
+          { label: "Protecao do Servidor", description: "Anti-link, anti-fake e seguranca basica.", value: "protection" },
+          { label: "Sorteios", description: "Crie e encerre sorteios.", value: "giveaways" },
+          { label: "Apps de Clientes", description: "Bots comprados, token, nome, foto e status.", value: "apps" },
+          { label: "Automacoes", description: "Repost, boas-vindas e auto-cargo.", value: "automation" }
+        )
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("botcfg:store")
+        .setLabel("Loja")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("botcfg:tickets")
+        .setLabel("Tickets")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("botcfg:protection")
+        .setLabel("Protecao")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("botcfg:apps")
+        .setLabel("Apps")
+        .setStyle(ButtonStyle.Success)
+    )
+  ];
+}
+
+function protectionPanelEmbed(settings, shop) {
+  return new EmbedBuilder()
+    .setColor(theme.warning)
+    .setTitle("Protecao do servidor")
+    .setDescription("Gerencie protecoes basicas contra links, contas recentes e entrada de bots.")
+    .addFields(
+      { name: "Anti-link", value: yesNo(settings.protection?.antiLink), inline: true },
+      { name: "Anti-fake", value: yesNo(settings.antiFake?.enabled), inline: true },
+      { name: "Anti-bot", value: yesNo(settings.protection?.antiBot), inline: true },
+      { name: "Minimo de conta", value: `${settings.antiFake?.minAccountAgeDays || 7} dia(s)`, inline: true },
+      { name: "Modo anti-fake", value: settings.antiFake?.logOnly ? "Apenas logar" : "Expulsar", inline: true },
+      { name: "Canal de logs", value: shop.logChannelId ? `<#${shop.logChannelId}>` : "Nao definido", inline: true }
+    );
+}
+
+function protectionRows() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("protcfg:antilink")
+        .setLabel("Anti-link")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("protcfg:antifake")
+        .setLabel("Anti-fake")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("protcfg:antibot")
+        .setLabel("Anti-bot")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("botcfg:home")
+        .setLabel("Voltar")
+        .setStyle(ButtonStyle.Primary)
+    )
+  ];
+}
+
+function productsAdminEmbed(products, panels) {
+  const productText = products.length
+    ? products.slice(0, 8).map((product) => `\`${product.id}\` - **${product.name}** (${brl(product.price)})`).join("\n")
+    : "Nenhum produto cadastrado.";
+  const panelText = panels.length
+    ? panels.slice(0, 8).map((panel) => `\`${panel.id}\` - **${panel.name}**`).join("\n")
+    : "Nenhum painel cadastrado.";
+
+  return new EmbedBuilder()
+    .setColor(theme.success)
+    .setTitle("Loja | Produtos")
+    .setDescription("Use os comandos abaixo para criar e publicar produtos.")
+    .addFields(
+      { name: "Produtos", value: productText },
+      { name: "Paineis", value: panelText },
+      { name: "Comandos", value: "`/criar produto`, `/criar campo`, `/criar painel`, `/set produto`, `/set painel`" }
+    );
+}
+
+function automationPanelEmbed(settings) {
+  return new EmbedBuilder()
+    .setColor(theme.cyan)
+    .setTitle("Automacoes")
+    .setDescription("Configure repost, boas-vindas, auto-cargo e atendimento com IA.")
+    .addFields(
+      { name: "Boas-vindas", value: yesNo(settings.welcome?.enabled), inline: true },
+      { name: "Auto-cargo", value: yesNo(settings.autoRole?.enabled), inline: true },
+      { name: "IA em tickets", value: yesNo(settings.ai?.enabled), inline: true },
+      { name: "Comandos", value: "`/painel-config`, `/painel-ia`, `/repost`" }
+    );
+}
+
+async function sendBotConfigPanel(interaction, edit = false) {
+  const shop = await getShopSettings(interaction.guildId);
+  const settings = await getGuildSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode abrir o botconfig.", ephemeral: true });
+    return;
+  }
+
+  const payload = {
+    embeds: [botConfigEmbed(shop, settings)],
+    components: botConfigRows(),
+    ephemeral: true
+  };
+
+  if (edit) await interaction.update(payload);
+  else await interaction.reply(payload);
+}
+
+async function handleBotConfigSection(interaction, section) {
+  const shop = await getShopSettings(interaction.guildId);
+  const settings = await getGuildSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode alterar o painel.", ephemeral: true });
+    return;
+  }
+
+  if (section === "home") {
+    await sendBotConfigPanel(interaction, true);
+    return;
+  }
+
+  if (section === "store") {
+    await interaction.update({ embeds: [shopPanelEmbed(shop)], components: shopRows() });
+    return;
+  }
+
+  if (section === "tickets") {
+    await interaction.update({ embeds: [supportPanelEmbed(shop)], components: supportRows() });
+    return;
+  }
+
+  if (section === "protection") {
+    await interaction.update({ embeds: [protectionPanelEmbed(settings, shop)], components: protectionRows() });
+    return;
+  }
+
+  if (section === "products") {
+    await interaction.update({ embeds: [productsAdminEmbed(await getProducts(), await getPanels())], components: botConfigRows() });
+    return;
+  }
+
+  if (section === "automation") {
+    await interaction.update({ embeds: [automationPanelEmbed(settings)], components: botConfigRows() });
+    return;
+  }
+
+  if (section === "giveaways") {
+    await interaction.update({
+      embeds: [new EmbedBuilder()
+        .setColor(theme.purple)
+        .setTitle("Sorteios")
+        .setDescription("Crie sorteios reais com botao de participar e encerramento automatico.")
+        .addFields({ name: "Comandos", value: "`/sorteio criar`, `/sorteio encerrar`" })],
+      components: botConfigRows()
+    });
+    return;
+  }
+
+  if (section === "apps") {
+    const apps = await getApps();
+    await interaction.update({ embeds: [appPanelEmbed(userApps(apps, interaction, shop), true)], components: appRows() });
+  }
 }
 
 function appRows() {
@@ -1260,6 +1497,10 @@ async function publicSaleLog(guild, embed) {
 
 async function createOrderTicket(interaction, plan) {
   const shop = await getShopSettings(interaction.guildId);
+  if (!shop.salesEnabled) {
+    await interaction.reply({ content: "As vendas estao desligadas no momento.", ephemeral: true });
+    return;
+  }
   const orderId = `${Date.now().toString(36)}-${interaction.user.id.slice(-4)}`;
   const guild = interaction.guild;
   const channelName = `compra-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90);
@@ -1338,6 +1579,10 @@ async function createOrderTicket(interaction, plan) {
 
 async function createProductTicket(interaction, product, field = null, acceptedTerms = false) {
   const shop = await getShopSettings(interaction.guildId);
+  if (!shop.salesEnabled) {
+    await interaction.reply({ content: "As vendas estao desligadas no momento.", ephemeral: true });
+    return;
+  }
   const item = field || { ...product, productId: product.id, productName: product.name, fieldId: null };
 
   if (isBlacklisted(shop, interaction.user.id)) {
@@ -2028,6 +2273,51 @@ async function handleShopButton(interaction, action) {
           .setLabel("Chave Pix")
           .setStyle(TextInputStyle.Short)
           .setValue(shop.pixKey || "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("pixEnabled")
+          .setLabel("Pix ativo? sim ou nao")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.paymentMethods.pix ? "sim" : "nao")
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("manualProof")
+          .setLabel("Comprovante manual? sim ou nao")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.paymentMethods.manualProof ? "sim" : "nao")
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("mercadoPago")
+          .setLabel("Mercado Pago ativo? sim ou nao")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.paymentMethods.mercadoPago ? "sim" : "nao")
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("wallet")
+          .setLabel("Carteira integrada? sim ou nao")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.paymentMethods.wallet ? "sim" : "nao")
+          .setRequired(true)
+      )
+    );
+  }
+
+  if (action === "sales") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("salesEnabled")
+          .setLabel("Vendas ligadas? sim ou nao")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.salesEnabled ? "sim" : "nao")
           .setRequired(true)
       )
     );
@@ -2116,6 +2406,16 @@ async function handleShopModal(interaction, action) {
 
   if (action === "payment") {
     settings.shop.pixKey = interaction.fields.getTextInputValue("pixKey").trim();
+    settings.shop.paymentMethods = {
+      pix: boolFromText(interaction.fields.getTextInputValue("pixEnabled")),
+      manualProof: boolFromText(interaction.fields.getTextInputValue("manualProof")),
+      mercadoPago: boolFromText(interaction.fields.getTextInputValue("mercadoPago")),
+      wallet: boolFromText(interaction.fields.getTextInputValue("wallet"))
+    };
+  }
+
+  if (action === "sales") {
+    settings.shop.salesEnabled = boolFromText(interaction.fields.getTextInputValue("salesEnabled"));
   }
 
   if (action === "channels") {
@@ -2495,6 +2795,25 @@ async function handleProtectionCommand(interaction) {
     content: `Anti-link ${settings.protection.antiLink ? "ativado" : "desativado"}.`,
     ephemeral: true
   });
+}
+
+async function handleProtectionButton(interaction, action) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode configurar protecoes.", ephemeral: true });
+    return;
+  }
+
+  const settings = await getGuildSettings(interaction.guildId);
+  settings.protection = settings.protection || {};
+  settings.antiFake = settings.antiFake || {};
+
+  if (action === "antilink") settings.protection.antiLink = !settings.protection.antiLink;
+  if (action === "antibot") settings.protection.antiBot = !settings.protection.antiBot;
+  if (action === "antifake") settings.antiFake.enabled = !settings.antiFake.enabled;
+
+  await saveGuildSettings(interaction.guildId, settings);
+  await interaction.update({ embeds: [protectionPanelEmbed(settings, shop)], components: protectionRows() });
 }
 
 async function beginProductPurchase(interaction, product, field = null, acceptedTerms = false) {
@@ -2960,6 +3279,7 @@ function cartEmbed(order, product, shop) {
       { name: "Cliente", value: `<@${order.userId}>`, inline: true },
       { name: "Status", value: order.status, inline: true },
       { name: "Chave Pix", value: `\`${shop.pixKey || "Configure o Pix em /painel-loja"}\`` },
+      { name: "Formas de pagamento", value: paymentMethodsText(shop), inline: true },
       { name: "Entrega", value: product.deliveryMode === "automatic" ? "Automatica apos aprovacao" : "Manual pela equipe" }
     )
     .setFooter({ text: `Pedido ${order.id}` });
@@ -3080,6 +3400,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "setup-loja") await sendStorePanel(interaction);
       if (interaction.commandName === "painel-config") await sendConfigPanel(interaction);
+      if (interaction.commandName === "botconfig") await sendBotConfigPanel(interaction);
       if (interaction.commandName === "painel-loja") await sendShopPanel(interaction);
       if (interaction.commandName === "planos") await sendPlans(interaction);
       if (interaction.commandName === "criar") await handleCreateCommand(interaction);
@@ -3113,8 +3434,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId === "botcfg:section") {
+      await handleBotConfigSection(interaction, interaction.values[0]);
+      return;
+    }
+
     if (interaction.isButton()) {
       const [, action, orderId] = interaction.customId.split(":");
+      if (interaction.customId.startsWith("botcfg:")) {
+        await handleBotConfigSection(interaction, action);
+        return;
+      }
+      if (interaction.customId.startsWith("protcfg:")) {
+        await handleProtectionButton(interaction, action);
+        return;
+      }
       if (interaction.customId.startsWith("apps:")) {
         await handleAppsButton(interaction, action);
         return;
@@ -3233,6 +3567,16 @@ client.on(Events.MessageCreate, async (message) => {
 
 client.on(Events.GuildMemberAdd, async (member) => {
   const settings = await getGuildSettings(member.guild.id);
+
+  if (member.user.bot && settings.protection?.antiBot) {
+    await member.kick("Protecao anti-bot ativa").catch(() => null);
+    await log(member.guild, new EmbedBuilder()
+      .setColor(theme.danger)
+      .setTitle("Anti-bot")
+      .setDescription(`Bot ${member.user.tag} removido automaticamente.`));
+    return;
+  }
+
   const accountAgeMs = Date.now() - member.user.createdTimestamp;
   const accountAgeDays = accountAgeMs / 86400000;
 
