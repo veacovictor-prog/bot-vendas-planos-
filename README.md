@@ -51,7 +51,8 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 - **Repost automatico:** produto ou painel repostado por intervalo.
 - **Protecao anti-link:** remove links de usuarios sem cargo staff.
 - **Painel botconfig:** menu central com secoes de loja, produtos, tickets, protecao, sorteios, apps e automacoes.
-- **Pagamentos:** Pix, comprovante manual, Mercado Pago e carteira podem ser ligados/desligados no painel.
+- **Pagamentos:** Pix, comprovante manual, Mercado Pago e carteira integrada podem ser ligados/desligados no painel.
+- **Carteira integrada:** gera Pix pelo Mercado Pago, verifica pagamento e registra o valor recebido para saque posterior na conta Mercado Pago.
 - **Protecao anti-bot:** remove bots adicionados quando a protecao estiver ativa.
 - **Apps de clientes:** cliente aprovado conecta o token do bot comprado e altera nome, foto e status.
 - **Boas-vindas:** mensagem customizavel com `{user}` para mencionar o membro.
@@ -188,6 +189,36 @@ Quando o produto tiver campos, o cliente clica em comprar e escolhe a opcao no m
 ```txt
 /gerar-pix valor:49.90 descricao:Bot personalizado
 ```
+
+### Carteira integrada
+
+A carteira integrada usa Mercado Pago. O bot gera o Pix, o cliente paga, o dinheiro cai na sua conta Mercado Pago e voce saca depois pelo painel/app do Mercado Pago.
+
+Configure de um destes jeitos:
+
+```env
+MERCADO_PAGO_ACCESS_TOKEN=APP_USR...
+```
+
+Ou pelo Discord:
+
+```txt
+/botconfig
+Loja > Carteira MP
+```
+
+No carrinho o cliente usa:
+
+- `Pix carteira`: gera o Pix copia e cola do Mercado Pago.
+- `Verificar Pix`: consulta o Mercado Pago; se estiver aprovado, o bot aprova e entrega automaticamente.
+
+Para ver o resumo:
+
+```txt
+/carteira
+```
+
+O bot nao faz saque bancario automatico. Ele confirma e registra o pagamento; o saque fica na sua conta Mercado Pago.
 
 ## Recursos premium
 

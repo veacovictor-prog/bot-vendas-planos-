@@ -200,6 +200,10 @@ const commands = [
     .addNumberOption((option) => option.setName("valor").setDescription("Valor da cobranca.").setRequired(true))
     .addStringOption((option) => option.setName("descricao").setDescription("Descricao da cobranca.").setRequired(false)),
   new SlashCommandBuilder()
+    .setName("carteira")
+    .setDescription("Mostra os recebimentos Pix da carteira integrada.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  new SlashCommandBuilder()
     .setName("painel-ia")
     .setDescription("Configura o suporte com IA.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
@@ -459,6 +463,7 @@ function defaultGuildSettings() {
         mercadoPago: false,
         wallet: false
       },
+      mercadoPagoAccessToken: "",
       termsRequired: false,
       termsText: "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
       blacklist: []
@@ -528,6 +533,7 @@ async function getShopSettings(guildId) {
       mercadoPago: Boolean(settings.shop?.paymentMethods?.mercadoPago),
       wallet: Boolean(settings.shop?.paymentMethods?.wallet)
     },
+    mercadoPagoAccessToken: settings.shop?.mercadoPagoAccessToken || process.env.MERCADO_PAGO_ACCESS_TOKEN || "",
     termsRequired: Boolean(settings.shop?.termsRequired),
     termsText: settings.shop?.termsText || "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
     blacklist: settings.shop?.blacklist || []
@@ -591,6 +597,15 @@ function paymentMethodsText(shop) {
     methods.wallet ? "Carteira" : null
   ].filter(Boolean);
   return active.length ? active.join(", ") : "Nenhum ativo";
+}
+
+function parsePrice(value) {
+  if (typeof value === "number") return value;
+  return Number(String(value || "0").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "")) || 0;
+}
+
+function orderAmount(order) {
+  return Number(order.total || order.price || 0);
 }
 
 function shortText(value, fallback = "Nao configurado", size = 900) {
@@ -677,6 +692,7 @@ function shopPanelEmbed(shop) {
       { name: "Pix", value: shop.pixKey ? `\`${shop.pixKey}\`` : "Nao configurado", inline: true },
       { name: "Vendas", value: shop.salesEnabled ? "Ligadas" : "Desligadas", inline: true },
       { name: "Pagamentos", value: paymentMethodsText(shop), inline: true },
+      { name: "Carteira MP", value: shop.mercadoPagoAccessToken ? "Token configurado" : "Token pendente", inline: true },
       { name: "Suporte", value: shop.supportUrl || "Nao configurado", inline: true },
       { name: "Log privada", value: shop.logChannelId ? `<#${shop.logChannelId}>` : "Nao configurado", inline: true },
       { name: "Log publica", value: shop.publicLogChannelId ? `<#${shop.publicLogChannelId}>` : "Nao configurado", inline: true },
@@ -721,6 +737,13 @@ function shopRows() {
         .setCustomId("shopcfg:sales")
         .setEmoji("🔌")
         .setLabel("Vendas")
+        .setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("shopcfg:wallet")
+        .setEmoji("💼")
+        .setLabel("Carteira MP")
         .setStyle(ButtonStyle.Secondary)
     )
   ];
@@ -1469,6 +1492,16 @@ function paymentRows(orderId) {
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
+        .setCustomId(`order:walletpix:${orderId}`)
+        .setEmoji("💼")
+        .setLabel("Pix carteira")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`order:checkpix:${orderId}`)
+        .setEmoji("🔎")
+        .setLabel("Verificar Pix")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
         .setCustomId(`order:approve:${orderId}`)
         .setEmoji("✅")
         .setLabel("Aprovar")
@@ -1526,6 +1559,51 @@ async function publicSaleLog(guild, embed) {
   if (!shop.publicLogChannelId) return;
   const channel = await guild.channels.fetch(shop.publicLogChannelId).catch(() => null);
   if (channel?.isTextBased()) await channel.send({ embeds: [embed] });
+}
+
+async function createMercadoPagoPix(order, shop, user) {
+  if (!shop.paymentMethods.wallet || !shop.mercadoPagoAccessToken) {
+    throw new Error("Carteira Mercado Pago nao configurada em /painel-loja.");
+  }
+
+  const amount = orderAmount(order);
+  if (!amount || amount <= 0) throw new Error("Valor do pedido invalido.");
+
+  const response = await fetch("https://api.mercadopago.com/v1/payments", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${shop.mercadoPagoAccessToken}`,
+      "Content-Type": "application/json",
+      "X-Idempotency-Key": `discord-${order.id}`
+    },
+    body: JSON.stringify({
+      transaction_amount: amount,
+      description: `${shop.storeName || "Loja"} - pedido ${order.id}`.slice(0, 250),
+      payment_method_id: "pix",
+      payer: {
+        email: `cliente_${user.id}@example.com`,
+        first_name: user.username || "Cliente"
+      },
+      external_reference: order.id
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`Mercado Pago recusou o Pix (${response.status}): ${JSON.stringify(data).slice(0, 250)}`);
+  }
+
+  return data;
+}
+
+async function getMercadoPagoPayment(paymentId, shop) {
+  if (!shop.mercadoPagoAccessToken) throw new Error("Access token Mercado Pago nao configurado.");
+  const response = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+    headers: { Authorization: `Bearer ${shop.mercadoPagoAccessToken}` }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`Erro ao verificar Pix (${response.status}).`);
+  return data;
 }
 
 async function createOrderTicket(interaction, plan) {
@@ -1586,6 +1664,7 @@ async function createOrderTicket(interaction, plan) {
     guildId: guild.id,
     channelId: channel.id,
     planId: plan.id,
+    total: parsePrice(plan.price),
     status: "aguardando_pagamento",
     proof: null,
     createdAt: new Date().toISOString(),
@@ -1977,6 +2056,35 @@ async function handleGeneratePix(interaction) {
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
+async function handleWalletStatsCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode ver a carteira.", ephemeral: true });
+    return;
+  }
+
+  const orders = (await getOrders()).filter((order) => order.guildId === interaction.guildId && order.walletPix?.paymentId);
+  const approved = orders.filter((order) => order.status === "aprovado" && order.walletPix.status === "approved");
+  const pending = orders.filter((order) => order.walletPix.status !== "approved");
+  const approvedTotal = approved.reduce((sum, order) => sum + orderAmount(order), 0);
+  const pendingTotal = pending.reduce((sum, order) => sum + orderAmount(order), 0);
+
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(theme.success)
+      .setTitle("Carteira integrada")
+      .setDescription("Resumo dos Pix gerados pelo Mercado Pago. O saque e feito na sua conta Mercado Pago.")
+      .addFields(
+        { name: "Token MP", value: shop.mercadoPagoAccessToken ? "Configurado" : "Pendente", inline: true },
+        { name: "Recebido aprovado", value: brl(approvedTotal), inline: true },
+        { name: "Pendente", value: brl(pendingTotal), inline: true },
+        { name: "Pedidos aprovados", value: String(approved.length), inline: true },
+        { name: "Pedidos pendentes", value: String(pending.length), inline: true }
+      )],
+    ephemeral: true
+  });
+}
+
 async function sendAiPanel(interaction) {
   const settings = await getGuildSettings(interaction.guildId);
   await interaction.channel.send({ embeds: [aiPanelEmbed(settings)], components: aiRows() });
@@ -2357,6 +2465,19 @@ async function handleShopButton(interaction, action) {
     );
   }
 
+  if (action === "wallet") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("mercadoPagoAccessToken")
+          .setLabel("Access Token Mercado Pago")
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(shop.mercadoPagoAccessToken || "")
+          .setRequired(false)
+      )
+    );
+  }
+
   if (action === "channels") {
     modal.addComponents(
       new ActionRowBuilder().addComponents(
@@ -2450,6 +2571,13 @@ async function handleShopModal(interaction, action) {
 
   if (action === "sales") {
     settings.shop.salesEnabled = boolFromText(interaction.fields.getTextInputValue("salesEnabled"));
+  }
+
+  if (action === "wallet") {
+    settings.shop.mercadoPagoAccessToken = interaction.fields.getTextInputValue("mercadoPagoAccessToken").trim();
+    settings.shop.paymentMethods = settings.shop.paymentMethods || {};
+    settings.shop.paymentMethods.wallet = Boolean(settings.shop.mercadoPagoAccessToken);
+    settings.shop.paymentMethods.mercadoPago = Boolean(settings.shop.mercadoPagoAccessToken);
   }
 
   if (action === "channels") {
@@ -3126,6 +3254,86 @@ async function handleCouponModal(interaction, orderId) {
   });
 }
 
+async function handleWalletPix(interaction, orderId) {
+  const order = await findOrder(orderId);
+  if (!order || order.userId !== interaction.user.id) {
+    await interaction.reply({ content: "Pedido nao encontrado.", ephemeral: true });
+    return;
+  }
+
+  const shop = await getShopSettings(interaction.guildId);
+  await interaction.deferReply({ ephemeral: true });
+
+  if (order.walletPix?.paymentId) {
+    await interaction.editReply(`Ja existe um Pix gerado para este pedido. Use **Verificar Pix**.\n\nCopia e cola:\n\`\`\`\n${order.walletPix.qrCode || "Nao disponivel"}\n\`\`\``);
+    return;
+  }
+
+  const payment = await createMercadoPagoPix(order, shop, interaction.user);
+  const transactionData = payment.point_of_interaction?.transaction_data || {};
+  order.walletPix = {
+    provider: "mercadopago",
+    paymentId: String(payment.id),
+    status: payment.status || "pending",
+    qrCode: transactionData.qr_code || "",
+    ticketUrl: transactionData.ticket_url || "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  order.updatedAt = new Date().toISOString();
+  await saveOrder(order);
+
+  await interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setColor(theme.success)
+      .setTitle("Pix carteira gerado")
+      .setDescription("Pague pelo Pix abaixo. O valor cai na sua conta Mercado Pago configurada.")
+      .addFields(
+        { name: "Pedido", value: order.id, inline: true },
+        { name: "Valor", value: brl(orderAmount(order)), inline: true },
+        { name: "Pagamento MP", value: `\`${order.walletPix.paymentId}\``, inline: true },
+        { name: "Copia e cola", value: `\`\`\`\n${shortText(order.walletPix.qrCode, "Nao retornado", 900)}\n\`\`\`` },
+        { name: "Link", value: order.walletPix.ticketUrl || "Nao retornado" }
+      )]
+  });
+}
+
+async function handleCheckWalletPix(interaction, orderId) {
+  const order = await findOrder(orderId);
+  if (!order) {
+    await interaction.reply({ content: "Pedido nao encontrado.", ephemeral: true });
+    return;
+  }
+
+  const shop = await getShopSettings(interaction.guildId);
+  const canCheck = order.userId === interaction.user.id || isStaff(interaction.member, shop);
+  if (!canCheck) {
+    await interaction.reply({ content: "Voce nao pode verificar este pedido.", ephemeral: true });
+    return;
+  }
+
+  if (!order.walletPix?.paymentId) {
+    await interaction.reply({ content: "Este pedido ainda nao tem Pix carteira gerado.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const payment = await getMercadoPagoPayment(order.walletPix.paymentId, shop);
+  order.walletPix.status = payment.status || order.walletPix.status;
+  order.walletPix.statusDetail = payment.status_detail || "";
+  order.walletPix.updatedAt = new Date().toISOString();
+  order.updatedAt = new Date().toISOString();
+  await saveOrder(order);
+
+  if (payment.status === "approved") {
+    await interaction.editReply("Pix aprovado no Mercado Pago. Finalizando a entrega...");
+    await handleApprove(interaction, orderId, false);
+    return;
+  }
+
+  await interaction.editReply(`Pix ainda nao aprovado. Status atual: **${payment.status || "desconhecido"}**.`);
+}
+
 async function handleProofModal(interaction, orderId) {
   const order = await findOrder(orderId);
   if (!order || order.userId !== interaction.user.id) {
@@ -3156,9 +3364,9 @@ async function handleProofModal(interaction, orderId) {
   await log(interaction.guild, embed);
 }
 
-async function handleApprove(interaction, orderId) {
+async function handleApprove(interaction, orderId, requireStaff = true) {
   const shop = await getShopSettings(interaction.guildId);
-  if (!isStaff(interaction.member, shop)) {
+  if (requireStaff && !isStaff(interaction.member, shop)) {
     await interaction.reply({ content: "Apenas a equipe pode aprovar pedidos.", ephemeral: true });
     return;
   }
@@ -3247,7 +3455,9 @@ async function handleApprove(interaction, orderId) {
 
   await interaction.channel.send({ content: `<@${order.userId}>`, embeds: [embed] });
   await interaction.channel.send(`<@${order.userId}> depois que receber, voce pode avaliar com \`/avaliar\`.`).catch(() => null);
-  await interaction.reply({ content: "Pedido aprovado.", ephemeral: true });
+  const replyPayload = { content: "Pedido aprovado.", ephemeral: true };
+  if (interaction.replied || interaction.deferred) await interaction.followUp(replyPayload).catch(() => null);
+  else await interaction.reply(replyPayload);
   await log(interaction.guild, embed);
   await publicSaleLog(interaction.guild, new EmbedBuilder()
     .setColor(theme.success)
@@ -3444,6 +3654,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "set") await handleSetCommand(interaction);
       if (interaction.commandName === "estatistica") await handleStatsCommand(interaction);
       if (interaction.commandName === "gerar-pix") await handleGeneratePix(interaction);
+      if (interaction.commandName === "carteira") await handleWalletStatsCommand(interaction);
       if (interaction.commandName === "painel-ia") await sendAiPanel(interaction);
       if (interaction.commandName === "ticket-painel") await sendTicketPanel(interaction);
       if (interaction.commandName === "blacklist") await handleBlacklistCommand(interaction);
@@ -3525,6 +3736,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       if (action === "proof") await handleProofButton(interaction, orderId);
       if (action === "coupon") await handleCouponButton(interaction, orderId);
+      if (action === "walletpix") await handleWalletPix(interaction, orderId);
+      if (action === "checkpix") await handleCheckWalletPix(interaction, orderId);
       if (action === "approve") await handleApprove(interaction, orderId);
       if (action === "reject") await handleReject(interaction, orderId);
       if (action === "close") await handleClose(interaction, orderId);
