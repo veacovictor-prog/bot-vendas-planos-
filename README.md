@@ -15,6 +15,8 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 - `/set painel`: publica um painel com menu de selecao.
 - `/estatistica`: mostra pedidos, aprovados e faturamento.
 - `/gerar-pix`: gera uma cobranca Pix manual com copia e cola.
+- `/painel-ia`: configura IA de atendimento com Gemini.
+- `/ticket-painel`: publica painel de suporte.
 - Botao `Comprar`: cria ticket privado para pagamento.
 - Botao `Enviar comprovante`: abre modal para o cliente informar dados do pagamento.
 - Botao `Aplicar cupom`: aplica desconto no carrinho.
@@ -29,6 +31,9 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 - **Painel multi-produto:** um menu com varios produtos em um painel so.
 - **Cupons:** desconto percentual com limite de uso opcional.
 - **Estatisticas:** pedidos totais, aprovados, em analise e faturamento aprovado.
+- **Logs publico/privado:** canal privado para equipe e canal publico para compras aprovadas.
+- **Cargo cliente:** cargo automatico quando a compra e aprovada.
+- **Ticket com IA:** painel de suporte, assumir atendimento, ultima compra e fechamento.
 - **Boas-vindas:** mensagem customizavel com `{user}` para mencionar o membro.
 - **Auto-cargo:** cargo automatico para novos membros.
 - **Anti-fake:** detecta contas recentes e pode apenas logar ou expulsar automaticamente.
@@ -60,8 +65,8 @@ npm start
 3. Va em **Bot** e clique em **Add Bot**.
 4. Copie o token do bot e guarde para usar no `DISCORD_TOKEN`.
 5. Em **Privileged Gateway Intents**, ative:
-   - Server Members Intent
-   - Message Content Intent, se for expandir o bot depois
+  - Server Members Intent
+  - Message Content Intent, necessario para IA responder mensagens em tickets
 
 ### 2. Configurar o Railway
 
@@ -91,9 +96,11 @@ Nesse painel voce configura:
 
 - nome da loja
 - chave Pix
-- canal de logs
+- canal de log privada
+- canal de log publica
 - categoria de tickets
 - cargo staff
+- cargo cliente
 - link de suporte
 
 Depois use:
@@ -151,6 +158,28 @@ Quando o staff aprovar o pagamento, o bot entrega um item do estoque e remove es
 ```txt
 /gerar-pix valor:49.90 descricao:Bot personalizado
 ```
+
+## Ticket com IA
+
+1. Use:
+
+```txt
+/painel-ia
+```
+
+2. Configure:
+
+- API: ativa/desativa, chave Gemini e modelo.
+- Treinamento: informacoes da loja, produtos e politica.
+- Comportamento: limite de respostas e FAQ no formato `pergunta=resposta`.
+
+3. Publique o painel:
+
+```txt
+/ticket-painel
+```
+
+Quando o cliente abrir ticket e mandar mensagem, a IA responde enquanto nenhum staff tiver clicado em `Assumir`.
 
 ### 4. Pegar os IDs para o painel
 
@@ -232,6 +261,8 @@ Quando aparecer `Online como NomeDoBot` nos logs, entre no seu servidor e use:
 /set
 /estatistica
 /gerar-pix
+/painel-ia
+/ticket-painel
 ```
 
 ### 10. Convidar o bot para o servidor
@@ -265,6 +296,7 @@ Convide o bot com permissoes de:
 - Manage Channels
 - Kick Members, se o anti-fake for usado para expulsar contas recentes
 - Manage Roles, se o auto-cargo estiver ativo
+- Message Content Intent, se usar IA em tickets
 - Send Messages
 - Embed Links
 - Use Slash Commands

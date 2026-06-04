@@ -29,6 +29,7 @@ const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const PRODUCTS_FILE = path.join(DATA_DIR, "products.json");
 const PANELS_FILE = path.join(DATA_DIR, "panels.json");
 const COUPONS_FILE = path.join(DATA_DIR, "coupons.json");
+const TICKETS_FILE = path.join(DATA_DIR, "tickets.json");
 
 const config = {
   token: process.env.DISCORD_TOKEN,
@@ -179,13 +180,23 @@ const commands = [
     .setName("gerar-pix")
     .setDescription("Gera uma cobranca Pix manual.")
     .addNumberOption((option) => option.setName("valor").setDescription("Valor da cobranca.").setRequired(true))
-    .addStringOption((option) => option.setName("descricao").setDescription("Descricao da cobranca.").setRequired(false))
+    .addStringOption((option) => option.setName("descricao").setDescription("Descricao da cobranca.").setRequired(false)),
+  new SlashCommandBuilder()
+    .setName("painel-ia")
+    .setDescription("Configura o suporte com IA.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  new SlashCommandBuilder()
+    .setName("ticket-painel")
+    .setDescription("Publica o painel de suporte com ticket e IA.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
 ].map((command) => command.toJSON());
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ]
 });
 
@@ -268,6 +279,26 @@ async function saveCoupons(coupons) {
   await writeJson(COUPONS_FILE, coupons);
 }
 
+async function getTickets() {
+  const tickets = await readJson(TICKETS_FILE, null);
+  if (tickets) return tickets;
+  await writeJson(TICKETS_FILE, []);
+  return [];
+}
+
+async function saveTicket(ticket) {
+  const tickets = await getTickets();
+  const index = tickets.findIndex((item) => item.id === ticket.id);
+  if (index >= 0) tickets[index] = ticket;
+  else tickets.push(ticket);
+  await writeJson(TICKETS_FILE, tickets);
+}
+
+async function findTicketByChannel(channelId) {
+  const tickets = await getTickets();
+  return tickets.find((ticket) => ticket.channelId === channelId && ticket.status === "open");
+}
+
 async function getOrders() {
   const orders = await readJson(ORDERS_FILE, null);
   if (orders) return orders;
@@ -289,8 +320,20 @@ function defaultGuildSettings() {
       pixKey: config.pixKey,
       supportUrl: config.supportUrl,
       logChannelId: config.logChannelId || "",
+      publicLogChannelId: "",
       ticketCategoryId: config.ticketCategoryId || "",
-      staffRoleId: config.staffRoleId || ""
+      staffRoleId: config.staffRoleId || "",
+      clientRoleId: ""
+    },
+    ai: {
+      enabled: false,
+      apiKey: process.env.GEMINI_API_KEY || "",
+      model: "gemini-1.5-flash",
+      maxReplies: 20,
+      storeInfo: "",
+      productInfo: "",
+      policy: "",
+      faq: []
     },
     welcome: {
       enabled: false,
@@ -329,8 +372,10 @@ async function getShopSettings(guildId) {
     pixKey: settings.shop?.pixKey || config.pixKey,
     supportUrl: settings.shop?.supportUrl || config.supportUrl,
     logChannelId: settings.shop?.logChannelId || config.logChannelId,
+    publicLogChannelId: settings.shop?.publicLogChannelId || "",
     ticketCategoryId: settings.shop?.ticketCategoryId || config.ticketCategoryId,
-    staffRoleId: settings.shop?.staffRoleId || config.staffRoleId
+    staffRoleId: settings.shop?.staffRoleId || config.staffRoleId,
+    clientRoleId: settings.shop?.clientRoleId || ""
   };
 }
 
@@ -416,9 +461,11 @@ function shopPanelEmbed(shop) {
       { name: "Nome", value: shop.storeName || "Nao configurado", inline: true },
       { name: "Pix", value: shop.pixKey ? `\`${shop.pixKey}\`` : "Nao configurado", inline: true },
       { name: "Suporte", value: shop.supportUrl || "Nao configurado", inline: true },
-      { name: "Logs", value: shop.logChannelId ? `<#${shop.logChannelId}>` : "Nao configurado", inline: true },
+      { name: "Log privada", value: shop.logChannelId ? `<#${shop.logChannelId}>` : "Nao configurado", inline: true },
+      { name: "Log publica", value: shop.publicLogChannelId ? `<#${shop.publicLogChannelId}>` : "Nao configurado", inline: true },
       { name: "Categoria tickets", value: shop.ticketCategoryId || "Nao configurado", inline: true },
-      { name: "Staff", value: shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Manage Server", inline: true }
+      { name: "Staff", value: shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Manage Server", inline: true },
+      { name: "Cliente", value: shop.clientRoleId ? `<@&${shop.clientRoleId}>` : "Nao configurado", inline: true }
     );
 }
 
@@ -441,6 +488,84 @@ function shopRows() {
         .setCustomId("shopcfg:staff")
         .setLabel("Staff")
         .setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("shopcfg:clientrole")
+        .setLabel("Cargo cliente")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function aiPanelEmbed(settings) {
+  return new EmbedBuilder()
+    .setColor(0x0891b2)
+    .setTitle("Painel IA")
+    .setDescription("Configure a IA de suporte para responder tickets ate alguem da equipe assumir.")
+    .addFields(
+      { name: "Status", value: settings.ai.enabled ? "Ativa" : "Desativada", inline: true },
+      { name: "Modelo", value: settings.ai.model || "gemini-1.5-flash", inline: true },
+      { name: "Limite", value: `${settings.ai.maxReplies || 20} resposta(s)`, inline: true },
+      { name: "Loja", value: settings.ai.storeInfo || "Nao configurado" },
+      { name: "Produto", value: settings.ai.productInfo || "Nao configurado" },
+      { name: "Politica", value: settings.ai.policy || "Nao configurado" }
+    );
+}
+
+function aiRows() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("aicfg:api")
+        .setLabel("API")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("aicfg:training")
+        .setLabel("Treinamento")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("aicfg:behavior")
+        .setLabel("Comportamento")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function supportPanelEmbed(shop) {
+  return new EmbedBuilder()
+    .setColor(0x334155)
+    .setTitle("Atendimento")
+    .setDescription("Abra um ticket para falar com o suporte. A IA pode responder perguntas iniciais quando estiver ativa.")
+    .setFooter({ text: shop.storeName || "Loja de Bots" });
+}
+
+function supportRows() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("support:open")
+        .setLabel("Abrir ticket")
+        .setStyle(ButtonStyle.Primary)
+    )
+  ];
+}
+
+function ticketRows(ticketId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`ticket:claim:${ticketId}`)
+        .setLabel("Assumir")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`ticket:lastbuy:${ticketId}`)
+        .setLabel("Ultima compra")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`ticket:close:${ticketId}`)
+        .setLabel("Fechar")
+        .setStyle(ButtonStyle.Danger)
     )
   ];
 }
@@ -570,6 +695,13 @@ async function log(guild, embed) {
   const shop = await getShopSettings(guild.id);
   if (!shop.logChannelId) return;
   const channel = await guild.channels.fetch(shop.logChannelId).catch(() => null);
+  if (channel?.isTextBased()) await channel.send({ embeds: [embed] });
+}
+
+async function publicSaleLog(guild, embed) {
+  const shop = await getShopSettings(guild.id);
+  if (!shop.publicLogChannelId) return;
+  const channel = await guild.channels.fetch(shop.publicLogChannelId).catch(() => null);
   if (channel?.isTextBased()) await channel.send({ embeds: [embed] });
 }
 
@@ -945,6 +1077,291 @@ async function handleGeneratePix(interaction) {
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
+async function sendAiPanel(interaction) {
+  const settings = await getGuildSettings(interaction.guildId);
+  await interaction.channel.send({ embeds: [aiPanelEmbed(settings)], components: aiRows() });
+  await interaction.reply({ content: "Painel IA enviado.", ephemeral: true });
+}
+
+async function sendTicketPanel(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  await interaction.channel.send({ embeds: [supportPanelEmbed(shop)], components: supportRows() });
+  await interaction.reply({ content: "Painel de ticket enviado.", ephemeral: true });
+}
+
+async function handleAiButton(interaction, action) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode configurar a IA.", ephemeral: true });
+    return;
+  }
+
+  const settings = await getGuildSettings(interaction.guildId);
+  const modal = new ModalBuilder()
+    .setCustomId(`aicfg-modal:${action}`)
+    .setTitle(`Configurar IA ${action}`);
+
+  if (action === "api") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("enabled")
+          .setLabel("Ativar IA? sim ou nao")
+          .setStyle(TextInputStyle.Short)
+          .setValue(settings.ai.enabled ? "sim" : "nao")
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("apiKey")
+          .setLabel("Chave Gemini API")
+          .setStyle(TextInputStyle.Short)
+          .setValue(settings.ai.apiKey || "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("model")
+          .setLabel("Modelo Gemini")
+          .setStyle(TextInputStyle.Short)
+          .setValue(settings.ai.model || "gemini-1.5-flash")
+          .setRequired(true)
+      )
+    );
+  }
+
+  if (action === "training") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("storeInfo")
+          .setLabel("Informacoes da loja")
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(settings.ai.storeInfo || "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("productInfo")
+          .setLabel("Informacoes dos produtos")
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(settings.ai.productInfo || "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("policy")
+          .setLabel("Politica da loja")
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(settings.ai.policy || "")
+          .setRequired(false)
+      )
+    );
+  }
+
+  if (action === "behavior") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("maxReplies")
+          .setLabel("Maximo de respostas por ticket")
+          .setStyle(TextInputStyle.Short)
+          .setValue(String(settings.ai.maxReplies || 20))
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("faq")
+          .setLabel("FAQ: pergunta=resposta, uma por linha")
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue((settings.ai.faq || []).map((item) => `${item.q}=${item.a}`).join("\n"))
+          .setRequired(false)
+      )
+    );
+  }
+
+  await interaction.showModal(modal);
+}
+
+async function handleAiModal(interaction, action) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode configurar a IA.", ephemeral: true });
+    return;
+  }
+
+  const yes = (value) => ["sim", "s", "yes", "y", "true", "1"].includes(value.trim().toLowerCase());
+  const settings = await getGuildSettings(interaction.guildId);
+  settings.ai = settings.ai || defaultGuildSettings().ai;
+
+  if (action === "api") {
+    settings.ai.enabled = yes(interaction.fields.getTextInputValue("enabled"));
+    settings.ai.apiKey = interaction.fields.getTextInputValue("apiKey").trim();
+    settings.ai.model = interaction.fields.getTextInputValue("model").trim() || "gemini-1.5-flash";
+  }
+
+  if (action === "training") {
+    settings.ai.storeInfo = interaction.fields.getTextInputValue("storeInfo").trim();
+    settings.ai.productInfo = interaction.fields.getTextInputValue("productInfo").trim();
+    settings.ai.policy = interaction.fields.getTextInputValue("policy").trim();
+  }
+
+  if (action === "behavior") {
+    const maxReplies = Number(interaction.fields.getTextInputValue("maxReplies").trim());
+    settings.ai.maxReplies = Number.isFinite(maxReplies) && maxReplies > 0 ? Math.min(maxReplies, 100) : 20;
+    settings.ai.faq = interaction.fields.getTextInputValue("faq")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [q, ...rest] = line.split("=");
+        return { q: (q || "").trim(), a: rest.join("=").trim() };
+      })
+      .filter((item) => item.q && item.a);
+  }
+
+  await saveGuildSettings(interaction.guildId, settings);
+  await interaction.reply({ content: "IA configurada.", embeds: [aiPanelEmbed(settings)], ephemeral: true });
+}
+
+async function createSupportTicket(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  const ticketId = `${Date.now().toString(36)}-${interaction.user.id.slice(-4)}`;
+  const channelName = `suporte-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90);
+
+  const permissionOverwrites = [
+    { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] }
+  ];
+
+  if (shop.staffRoleId) {
+    permissionOverwrites.push({
+      id: shop.staffRoleId,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+    });
+  }
+
+  const channel = await interaction.guild.channels.create({
+    name: channelName,
+    type: ChannelType.GuildText,
+    parent: shop.ticketCategoryId || null,
+    permissionOverwrites
+  });
+
+  const ticket = {
+    id: ticketId,
+    guildId: interaction.guildId,
+    channelId: channel.id,
+    userId: interaction.user.id,
+    status: "open",
+    claimedBy: null,
+    aiReplies: 0,
+    createdAt: new Date().toISOString()
+  };
+  await saveTicket(ticket);
+
+  await channel.send({
+    content: `<@${interaction.user.id}> ${shop.staffRoleId ? `<@&${shop.staffRoleId}>` : ""}`,
+    embeds: [new EmbedBuilder()
+      .setColor(0x2563eb)
+      .setTitle("Ticket aberto")
+      .setDescription("Descreva sua duvida. Se a IA estiver ativa, ela pode responder ate alguem assumir.")],
+    components: ticketRows(ticket.id)
+  });
+
+  await log(interaction.guild, new EmbedBuilder()
+    .setColor(0x2563eb)
+    .setTitle("Ticket de suporte aberto")
+    .setDescription(`Ticket **${ticket.id}** aberto por <@${ticket.userId}>.`));
+
+  await interaction.reply({ content: `Ticket criado: ${channel}`, ephemeral: true });
+}
+
+async function handleTicketButton(interaction, action, ticketId) {
+  const tickets = await getTickets();
+  const index = tickets.findIndex((ticket) => ticket.id === ticketId);
+  const ticket = tickets[index];
+  const shop = await getShopSettings(interaction.guildId);
+
+  if (!ticket) {
+    await interaction.reply({ content: "Ticket nao encontrado.", ephemeral: true });
+    return;
+  }
+
+  if (action === "claim") {
+    if (!isStaff(interaction.member, shop)) {
+      await interaction.reply({ content: "Apenas a equipe pode assumir tickets.", ephemeral: true });
+      return;
+    }
+    ticket.claimedBy = interaction.user.id;
+    tickets[index] = ticket;
+    await writeJson(TICKETS_FILE, tickets);
+    await interaction.reply({ content: `Atendimento assumido por <@${interaction.user.id}>.` });
+    return;
+  }
+
+  if (action === "lastbuy") {
+    const orders = (await getOrders()).filter((order) => order.userId === ticket.userId && order.status === "aprovado");
+    const last = orders[orders.length - 1];
+    await interaction.reply({
+      content: last ? `Ultima compra aprovada: **${last.productId || last.planId || last.id}** em ${last.updatedAt || last.createdAt}.` : "Esse usuario nao tem compra aprovada.",
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (action === "close") {
+    const canClose = ticket.userId === interaction.user.id || isStaff(interaction.member, shop);
+    if (!canClose) {
+      await interaction.reply({ content: "Voce nao pode fechar este ticket.", ephemeral: true });
+      return;
+    }
+    ticket.status = "closed";
+    ticket.closedAt = new Date().toISOString();
+    tickets[index] = ticket;
+    await writeJson(TICKETS_FILE, tickets);
+    await interaction.reply({ content: "Ticket sera fechado em 5 segundos.", ephemeral: true });
+    setTimeout(() => interaction.channel.delete("Ticket de suporte fechado").catch(() => null), 5000);
+  }
+}
+
+async function generateAiReply(settings, message) {
+  if (!settings.ai.enabled || !settings.ai.apiKey) return null;
+
+  const faq = (settings.ai.faq || []).map((item) => `Pergunta: ${item.q}\nResposta: ${item.a}`).join("\n\n");
+  const prompt = [
+    "Voce e um atendente de suporte de uma loja Discord.",
+    "Responda em portugues do Brasil, com clareza, sem prometer reembolso se a politica negar.",
+    `Informacoes da loja: ${settings.ai.storeInfo || "Nao informado"}`,
+    `Produtos: ${settings.ai.productInfo || "Nao informado"}`,
+    `Politica: ${settings.ai.policy || "Nao informado"}`,
+    faq ? `FAQ:\n${faq}` : "",
+    `Cliente perguntou: ${message.content}`
+  ].filter(Boolean).join("\n\n");
+
+  const model = settings.ai.model || "gemini-1.5-flash";
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${settings.ai.apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 500
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Gemini falhou: ${response.status} ${errorText.slice(0, 200)}`);
+  }
+
+  const json = await response.json();
+  return json.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim() || null;
+}
+
 async function handleShopButton(interaction, action) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
@@ -995,9 +1412,17 @@ async function handleShopButton(interaction, action) {
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId("logChannelId")
-          .setLabel("ID do canal de logs")
+          .setLabel("ID do canal de log privada")
           .setStyle(TextInputStyle.Short)
           .setValue(shop.logChannelId || "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("publicLogChannelId")
+          .setLabel("ID do canal de log publica")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.publicLogChannelId || "")
           .setRequired(false)
       ),
       new ActionRowBuilder().addComponents(
@@ -1006,6 +1431,19 @@ async function handleShopButton(interaction, action) {
           .setLabel("ID da categoria de tickets")
           .setStyle(TextInputStyle.Short)
           .setValue(shop.ticketCategoryId || "")
+          .setRequired(false)
+      )
+    );
+  }
+
+  if (action === "clientrole") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("clientRoleId")
+          .setLabel("ID do cargo cliente")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.clientRoleId || "")
           .setRequired(false)
       )
     );
@@ -1048,11 +1486,16 @@ async function handleShopModal(interaction, action) {
 
   if (action === "channels") {
     settings.shop.logChannelId = interaction.fields.getTextInputValue("logChannelId").trim();
+    settings.shop.publicLogChannelId = interaction.fields.getTextInputValue("publicLogChannelId").trim();
     settings.shop.ticketCategoryId = interaction.fields.getTextInputValue("ticketCategoryId").trim();
   }
 
   if (action === "staff") {
     settings.shop.staffRoleId = interaction.fields.getTextInputValue("staffRoleId").trim();
+  }
+
+  if (action === "clientrole") {
+    settings.shop.clientRoleId = interaction.fields.getTextInputValue("clientRoleId").trim();
   }
 
   await saveGuildSettings(interaction.guildId, settings);
@@ -1441,9 +1884,19 @@ async function handleApprove(interaction, orderId) {
   order.updatedAt = new Date().toISOString();
   await saveOrder(order);
 
+  if (shop.clientRoleId) {
+    const member = await interaction.guild.members.fetch(order.userId).catch(() => null);
+    await member?.roles.add(shop.clientRoleId, "Compra aprovada").catch(() => null);
+  }
+
   await interaction.channel.send({ content: `<@${order.userId}>`, embeds: [embed] });
   await interaction.reply({ content: "Pedido aprovado.", ephemeral: true });
   await log(interaction.guild, embed);
+  await publicSaleLog(interaction.guild, new EmbedBuilder()
+    .setColor(0x22c55e)
+    .setTitle("Nova compra aprovada")
+    .setDescription(`<@${order.userId}> teve uma compra aprovada.`)
+    .addFields({ name: "Valor", value: brl(order.total || 0), inline: true }));
 }
 
 async function handleReject(interaction, orderId) {
@@ -1606,6 +2059,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "set") await handleSetCommand(interaction);
       if (interaction.commandName === "estatistica") await handleStatsCommand(interaction);
       if (interaction.commandName === "gerar-pix") await handleGeneratePix(interaction);
+      if (interaction.commandName === "painel-ia") await sendAiPanel(interaction);
+      if (interaction.commandName === "ticket-painel") await sendTicketPanel(interaction);
       return;
     }
 
@@ -1621,6 +2076,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isButton()) {
       const [, action, orderId] = interaction.customId.split(":");
+      if (interaction.customId === "support:open") {
+        await createSupportTicket(interaction);
+        return;
+      }
+      if (interaction.customId.startsWith("ticket:")) {
+        await handleTicketButton(interaction, action, orderId);
+        return;
+      }
+      if (interaction.customId.startsWith("aicfg:")) {
+        await handleAiButton(interaction, action);
+        return;
+      }
       if (interaction.customId.startsWith("product:")) {
         await handleProductButton(interaction, action, orderId);
         return;
@@ -1651,6 +2118,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleConfigModal(interaction, action);
         return;
       }
+      if (interaction.customId.startsWith("aicfg-modal:")) {
+        await handleAiModal(interaction, action);
+        return;
+      }
       if (action === "proof-modal") await handleProofModal(interaction, orderId);
       if (action === "coupon-modal") await handleCouponModal(interaction, orderId);
     }
@@ -1659,6 +2130,38 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const payload = { content: "Ocorreu um erro ao processar essa acao.", ephemeral: true };
     if (interaction.replied || interaction.deferred) await interaction.followUp(payload).catch(() => null);
     else await interaction.reply(payload).catch(() => null);
+  }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  try {
+    if (!message.guild || message.author.bot) return;
+
+    const ticket = await findTicketByChannel(message.channel.id);
+    if (!ticket || ticket.claimedBy || ticket.userId !== message.author.id) return;
+
+    const settings = await getGuildSettings(message.guild.id);
+    if (!settings.ai.enabled || ticket.aiReplies >= (settings.ai.maxReplies || 20)) return;
+
+    await message.channel.sendTyping().catch(() => null);
+    const reply = await generateAiReply(settings, message).catch(async (error) => {
+      console.error("Erro na IA:", error);
+      await log(message.guild, new EmbedBuilder()
+        .setColor(0xef4444)
+        .setTitle("Erro na IA")
+        .setDescription(error.message.slice(0, 1000)));
+      return null;
+    });
+
+    if (!reply) return;
+
+    ticket.aiReplies = Number(ticket.aiReplies || 0) + 1;
+    ticket.updatedAt = new Date().toISOString();
+    await saveTicket(ticket);
+
+    await message.reply(reply.slice(0, 1900));
+  } catch (error) {
+    console.error(error);
   }
 });
 
