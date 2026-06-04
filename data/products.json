@@ -6,6 +6,7 @@
     "description": "Bot de vendas Discord com tickets, painel e suporte inicial.",
     "deliveryMode": "manual",
     "stock": [],
+    "fields": [],
     "active": true,
     "couponsEnabled": true
   }

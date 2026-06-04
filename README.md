@@ -9,6 +9,7 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 - `/painel-config`: envia o painel para configurar boas-vindas, auto-cargo e anti-fake.
 - `/planos`: mostra os planos disponiveis.
 - `/criar produto`: cria produto com preco, descricao, entrega manual ou automatica e estoque.
+- `/criar campo`: adiciona uma opcao/campo dentro de um produto.
 - `/criar painel`: cria painel com varios produtos.
 - `/criar cupom`: cria cupom de desconto.
 - `/set produto`: publica um produto no canal atual.
@@ -17,6 +18,12 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 - `/gerar-pix`: gera uma cobranca Pix manual com copia e cola.
 - `/painel-ia`: configura IA de atendimento com Gemini.
 - `/ticket-painel`: publica painel de suporte.
+- `/blacklist`: bloqueia/libera usuarios da loja.
+- `/termos`: configura aceite obrigatorio de termos.
+- `/sorteio`: cria e encerra sorteios.
+- `/repost`: republica produto/painel automaticamente.
+- `/avaliar`: cliente avalia a ultima compra aprovada.
+- `/protecao`: ativa/desativa anti-link basico.
 - Botao `Comprar`: cria ticket privado para pagamento.
 - Botao `Enviar comprovante`: abre modal para o cliente informar dados do pagamento.
 - Botao `Aplicar cupom`: aplica desconto no carrinho.
@@ -34,6 +41,13 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 - **Logs publico/privado:** canal privado para equipe e canal publico para compras aprovadas.
 - **Cargo cliente:** cargo automatico quando a compra e aprovada.
 - **Ticket com IA:** painel de suporte, assumir atendimento, ultima compra e fechamento.
+- **Campos de produto:** varias opcoes dentro do mesmo produto, cada uma com preco e estoque.
+- **Termos de compra:** aceite obrigatorio antes de abrir carrinho.
+- **Blacklist:** bloqueio de compra e ticket por usuario.
+- **Avaliacoes:** feedback publico apos compra aprovada.
+- **Sorteios:** botao de participar, requisito por cargo e encerramento automatico.
+- **Repost automatico:** produto ou painel repostado por intervalo.
+- **Protecao anti-link:** remove links de usuarios sem cargo staff.
 - **Boas-vindas:** mensagem customizavel com `{user}` para mencionar o membro.
 - **Auto-cargo:** cargo automatico para novos membros.
 - **Anti-fake:** detecta contas recentes e pode apenas logar ou expulsar automaticamente.
@@ -128,6 +142,15 @@ Use `|` para separar os itens do estoque:
 
 Quando o staff aprovar o pagamento, o bot entrega um item do estoque e remove esse item automaticamente.
 
+### Criar campos/opcoes dentro do produto
+
+```txt
+/criar campo produto:nitro id:mensal nome:Nitro Mensal preco:19.90 descricao:1 mes estoque:codigo1|codigo2
+/criar campo produto:nitro id:anual nome:Nitro Anual preco:149.90 descricao:12 meses estoque:codigo3|codigo4
+```
+
+Quando o produto tiver campos, o cliente clica em comprar e escolhe a opcao no menu.
+
 ### Criar cupom
 
 ```txt
@@ -157,6 +180,52 @@ Quando o staff aprovar o pagamento, o bot entrega um item do estoque e remove es
 
 ```txt
 /gerar-pix valor:49.90 descricao:Bot personalizado
+```
+
+## Recursos premium
+
+### Termos de compra
+
+```txt
+/termos texto:Ao comprar voce aceita os termos da loja obrigatorio:true
+```
+
+### Blacklist
+
+```txt
+/blacklist add usuario:@usuario motivo:Chargeback
+/blacklist remover usuario:@usuario
+/blacklist listar
+```
+
+### Sorteio
+
+```txt
+/sorteio criar premio:Nitro minutos:60 vencedores:1
+/sorteio encerrar id:ID_DO_SORTEIO
+```
+
+### Repost automatico
+
+```txt
+/repost tipo:painel id:loja-principal minutos:60
+/repost tipo:produto id:bot-vendas minutos:30
+```
+
+Use `minutos:0` para desativar o repost daquele item no canal.
+
+### Avaliacao
+
+Depois de uma compra aprovada, o cliente usa:
+
+```txt
+/avaliar nota:5 comentario:Entrega rapida e produto funcionando
+```
+
+### Protecao anti-link
+
+```txt
+/protecao anti-link:true
 ```
 
 ## Ticket com IA
@@ -263,6 +332,12 @@ Quando aparecer `Online como NomeDoBot` nos logs, entre no seu servidor e use:
 /gerar-pix
 /painel-ia
 /ticket-painel
+/blacklist
+/termos
+/sorteio
+/repost
+/avaliar
+/protecao
 ```
 
 ### 10. Convidar o bot para o servidor

@@ -30,6 +30,9 @@ const PRODUCTS_FILE = path.join(DATA_DIR, "products.json");
 const PANELS_FILE = path.join(DATA_DIR, "panels.json");
 const COUPONS_FILE = path.join(DATA_DIR, "coupons.json");
 const TICKETS_FILE = path.join(DATA_DIR, "tickets.json");
+const REVIEWS_FILE = path.join(DATA_DIR, "reviews.json");
+const GIVEAWAYS_FILE = path.join(DATA_DIR, "giveaways.json");
+const REPOSTS_FILE = path.join(DATA_DIR, "reposts.json");
 
 const config = {
   token: process.env.DISCORD_TOKEN,
@@ -96,6 +99,7 @@ const defaultProducts = [
     description: "Bot de vendas Discord com tickets, painel e suporte inicial.",
     deliveryMode: "manual",
     stock: [],
+    fields: [],
     active: true,
     couponsEnabled: true
   }
@@ -148,6 +152,15 @@ const commands = [
         ))
       .addStringOption((option) => option.setName("estoque").setDescription("Itens separados por | para entrega automatica.").setRequired(false)))
     .addSubcommand((subcommand) => subcommand
+      .setName("campo")
+      .setDescription("Adiciona uma opcao/campo dentro de um produto.")
+      .addStringOption((option) => option.setName("produto").setDescription("ID do produto.").setRequired(true))
+      .addStringOption((option) => option.setName("id").setDescription("ID do campo/opcao.").setRequired(true))
+      .addStringOption((option) => option.setName("nome").setDescription("Nome do campo.").setRequired(true))
+      .addNumberOption((option) => option.setName("preco").setDescription("Preco deste campo.").setRequired(true))
+      .addStringOption((option) => option.setName("descricao").setDescription("Descricao do campo.").setRequired(false))
+      .addStringOption((option) => option.setName("estoque").setDescription("Itens separados por |.").setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
       .setName("painel")
       .setDescription("Cria ou atualiza um painel com produtos.")
       .addStringOption((option) => option.setName("id").setDescription("ID unico do painel.").setRequired(true))
@@ -188,7 +201,68 @@ const commands = [
   new SlashCommandBuilder()
     .setName("ticket-painel")
     .setDescription("Publica o painel de suporte com ticket e IA.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  new SlashCommandBuilder()
+    .setName("blacklist")
+    .setDescription("Gerencia usuarios bloqueados da loja.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((subcommand) => subcommand
+      .setName("add")
+      .setDescription("Bloqueia um usuario de comprar e abrir ticket.")
+      .addUserOption((option) => option.setName("usuario").setDescription("Usuario bloqueado.").setRequired(true))
+      .addStringOption((option) => option.setName("motivo").setDescription("Motivo do bloqueio.").setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName("remover")
+      .setDescription("Remove um usuario da blacklist.")
+      .addUserOption((option) => option.setName("usuario").setDescription("Usuario liberado.").setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName("listar")
+      .setDescription("Lista usuarios bloqueados.")),
+  new SlashCommandBuilder()
+    .setName("termos")
+    .setDescription("Configura os termos de compra.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption((option) => option.setName("texto").setDescription("Texto dos termos.").setRequired(true))
+    .addBooleanOption((option) => option.setName("obrigatorio").setDescription("Exigir aceite antes da compra.").setRequired(false)),
+  new SlashCommandBuilder()
+    .setName("sorteio")
+    .setDescription("Cria ou encerra sorteios.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((subcommand) => subcommand
+      .setName("criar")
+      .setDescription("Cria um sorteio com botao de participar.")
+      .addStringOption((option) => option.setName("premio").setDescription("Premio do sorteio.").setRequired(true))
+      .addIntegerOption((option) => option.setName("minutos").setDescription("Duracao em minutos.").setRequired(true))
+      .addIntegerOption((option) => option.setName("vencedores").setDescription("Quantidade de vencedores.").setRequired(false))
+      .addRoleOption((option) => option.setName("cargo").setDescription("Cargo obrigatorio para participar.").setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName("encerrar")
+      .setDescription("Encerra um sorteio pelo ID.")
+      .addStringOption((option) => option.setName("id").setDescription("ID do sorteio.").setRequired(true))),
+  new SlashCommandBuilder()
+    .setName("repost")
+    .setDescription("Configura repost automatico de produto ou painel.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption((option) => option
+      .setName("tipo")
+      .setDescription("Tipo de repost.")
+      .setRequired(true)
+      .addChoices(
+        { name: "produto", value: "product" },
+        { name: "painel", value: "panel" }
+      ))
+    .addStringOption((option) => option.setName("id").setDescription("ID do produto ou painel.").setRequired(true))
+    .addIntegerOption((option) => option.setName("minutos").setDescription("Intervalo em minutos. Use 0 para desativar.").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("avaliar")
+    .setDescription("Avalia sua ultima compra.")
+    .addIntegerOption((option) => option.setName("nota").setDescription("Nota de 1 a 5.").setRequired(true))
+    .addStringOption((option) => option.setName("comentario").setDescription("Comentario da avaliacao.").setRequired(false)),
+  new SlashCommandBuilder()
+    .setName("protecao")
+    .setDescription("Configura protecoes basicas do servidor.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addBooleanOption((option) => option.setName("anti-link").setDescription("Bloquear links de usuarios sem staff.").setRequired(true))
 ].map((command) => command.toJSON());
 
 const client = new Client({
@@ -286,6 +360,39 @@ async function getTickets() {
   return [];
 }
 
+async function getReviews() {
+  const reviews = await readJson(REVIEWS_FILE, null);
+  if (reviews) return reviews;
+  await writeJson(REVIEWS_FILE, []);
+  return [];
+}
+
+async function saveReviews(reviews) {
+  await writeJson(REVIEWS_FILE, reviews);
+}
+
+async function getGiveaways() {
+  const giveaways = await readJson(GIVEAWAYS_FILE, null);
+  if (giveaways) return giveaways;
+  await writeJson(GIVEAWAYS_FILE, []);
+  return [];
+}
+
+async function saveGiveaways(giveaways) {
+  await writeJson(GIVEAWAYS_FILE, giveaways);
+}
+
+async function getReposts() {
+  const reposts = await readJson(REPOSTS_FILE, null);
+  if (reposts) return reposts;
+  await writeJson(REPOSTS_FILE, []);
+  return [];
+}
+
+async function saveReposts(reposts) {
+  await writeJson(REPOSTS_FILE, reposts);
+}
+
 async function saveTicket(ticket) {
   const tickets = await getTickets();
   const index = tickets.findIndex((item) => item.id === ticket.id);
@@ -323,7 +430,11 @@ function defaultGuildSettings() {
       publicLogChannelId: "",
       ticketCategoryId: config.ticketCategoryId || "",
       staffRoleId: config.staffRoleId || "",
-      clientRoleId: ""
+      clientRoleId: "",
+      reviewChannelId: "",
+      termsRequired: false,
+      termsText: "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
+      blacklist: []
     },
     ai: {
       enabled: false,
@@ -348,6 +459,9 @@ function defaultGuildSettings() {
       enabled: false,
       minAccountAgeDays: 7,
       logOnly: true
+    },
+    protection: {
+      antiLink: false
     }
   };
 }
@@ -361,7 +475,8 @@ async function getGuildSettings(guildId) {
     shop: { ...defaults.shop, ...(current.shop || {}) },
     welcome: { ...defaults.welcome, ...(current.welcome || {}) },
     autoRole: { ...defaults.autoRole, ...(current.autoRole || {}) },
-    antiFake: { ...defaults.antiFake, ...(current.antiFake || {}) }
+    antiFake: { ...defaults.antiFake, ...(current.antiFake || {}) },
+    protection: { ...defaults.protection, ...(current.protection || {}) }
   };
 }
 
@@ -375,7 +490,11 @@ async function getShopSettings(guildId) {
     publicLogChannelId: settings.shop?.publicLogChannelId || "",
     ticketCategoryId: settings.shop?.ticketCategoryId || config.ticketCategoryId,
     staffRoleId: settings.shop?.staffRoleId || config.staffRoleId,
-    clientRoleId: settings.shop?.clientRoleId || ""
+    clientRoleId: settings.shop?.clientRoleId || "",
+    reviewChannelId: settings.shop?.reviewChannelId || "",
+    termsRequired: Boolean(settings.shop?.termsRequired),
+    termsText: settings.shop?.termsText || "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
+    blacklist: settings.shop?.blacklist || []
   };
 }
 
@@ -442,6 +561,27 @@ function productStockText(product) {
   return "Entrega manual";
 }
 
+function getProductFields(product) {
+  return Array.isArray(product.fields) ? product.fields : [];
+}
+
+function getBuyableItems(product) {
+  const fields = getProductFields(product);
+  if (!fields.length) return [{ ...product, fieldId: null, productId: product.id, productName: product.name }];
+  return fields.map((field) => ({
+    ...field,
+    productId: product.id,
+    productName: product.name,
+    deliveryMode: field.deliveryMode || product.deliveryMode,
+    couponsEnabled: product.couponsEnabled,
+    active: field.active !== false
+  }));
+}
+
+function isBlacklisted(shop, userId) {
+  return (shop.blacklist || []).some((entry) => entry.userId === userId);
+}
+
 function planEmbed(plan) {
   return new EmbedBuilder()
     .setColor(theme.primary)
@@ -487,6 +627,7 @@ function shopPanelEmbed(shop) {
       { name: "Suporte", value: shop.supportUrl || "Nao configurado", inline: true },
       { name: "Log privada", value: shop.logChannelId ? `<#${shop.logChannelId}>` : "Nao configurado", inline: true },
       { name: "Log publica", value: shop.publicLogChannelId ? `<#${shop.publicLogChannelId}>` : "Nao configurado", inline: true },
+      { name: "Avaliacoes", value: shop.reviewChannelId ? `<#${shop.reviewChannelId}>` : "Log publica", inline: true },
       { name: "Categoria tickets", value: shop.ticketCategoryId || "Nao configurado", inline: true },
       { name: "Staff", value: shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Manage Server", inline: true },
       { name: "Cliente", value: shop.clientRoleId ? `<@&${shop.clientRoleId}>` : "Nao configurado", inline: true }
@@ -691,6 +832,7 @@ function paymentRows(orderId) {
 }
 
 function isStaff(member, shop = {}) {
+  if (!member) return false;
   return member.permissions.has(PermissionFlagsBits.ManageGuild)
     || (shop.staffRoleId && member.roles.cache.has(shop.staffRoleId));
 }
@@ -813,15 +955,39 @@ async function createOrderTicket(interaction, plan) {
   });
 }
 
-async function createProductTicket(interaction, product) {
+async function createProductTicket(interaction, product, field = null, acceptedTerms = false) {
   const shop = await getShopSettings(interaction.guildId);
+  const item = field || { ...product, productId: product.id, productName: product.name, fieldId: null };
+
+  if (isBlacklisted(shop, interaction.user.id)) {
+    await interaction.reply({ content: "Voce esta bloqueado de comprar nesta loja.", ephemeral: true });
+    return;
+  }
+
+  if (shop.termsRequired && !acceptedTerms) {
+    await interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(theme.warning)
+        .setTitle("Termos de compra")
+        .setDescription(shortText(shop.termsText, "Leia os termos antes de continuar.", 1500))
+        .setFooter({ text: "Aceite os termos para abrir o carrinho." })],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`terms:accept:${product.id}:${item.fieldId || "base"}`)
+          .setLabel("Aceito os termos")
+          .setStyle(ButtonStyle.Success)
+      )],
+      ephemeral: true
+    });
+    return;
+  }
 
   if (!product.active) {
     await interaction.reply({ content: "Este produto esta desativado.", ephemeral: true });
     return;
   }
 
-  if (product.deliveryMode === "automatic" && (!product.stock || product.stock.length <= 0)) {
+  if (item.deliveryMode === "automatic" && (!item.stock || item.stock.length <= 0)) {
     await interaction.reply({ content: "Este produto esta sem estoque no momento.", ephemeral: true });
     return;
   }
@@ -863,8 +1029,10 @@ async function createProductTicket(interaction, product) {
     guildId: guild.id,
     channelId: channel.id,
     productId: product.id,
+    fieldId: item.fieldId || null,
+    itemName: item.name || product.name,
     status: "aguardando_pagamento",
-    total: Number(product.price),
+    total: Number(item.price),
     coupon: null,
     proof: null,
     createdAt: new Date().toISOString(),
@@ -874,14 +1042,14 @@ async function createProductTicket(interaction, product) {
   await saveOrder(order);
   await channel.send({
     content: `<@${interaction.user.id}> ${shop.staffRoleId ? `<@&${shop.staffRoleId}>` : ""}`,
-    embeds: [cartEmbed(order, product, shop)],
+    embeds: [cartEmbed(order, item, shop)],
     components: paymentRows(order.id)
   });
 
   await log(guild, new EmbedBuilder()
     .setColor(theme.primary)
     .setTitle("Novo carrinho")
-    .setDescription(`Carrinho **${order.id}** criado por <@${order.userId}> para **${product.name}**.`));
+    .setDescription(`Carrinho **${order.id}** criado por <@${order.userId}> para **${item.name || product.name}**.`));
 
   await interaction.reply({ content: `Seu carrinho foi criado: ${channel}`, ephemeral: true });
 }
@@ -964,6 +1132,45 @@ async function handleCreateCommand(interaction) {
 
     await interaction.reply({
       content: `Produto **${product.name}** salvo com ID \`${product.id}\`. Use \`/set produto id:${product.id}\`.`,
+      embeds: [productEmbed(product, shop)],
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (subcommand === "campo") {
+    const products = await getProducts();
+    const productId = normalizeId(interaction.options.getString("produto"));
+    const productIndex = products.findIndex((item) => item.id === productId);
+    if (productIndex < 0) {
+      await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+      return;
+    }
+
+    const product = products[productIndex];
+    product.fields = getProductFields(product);
+    const fieldId = normalizeId(interaction.options.getString("id"));
+    const stockText = interaction.options.getString("estoque") || "";
+    const field = {
+      id: fieldId,
+      fieldId,
+      name: interaction.options.getString("nome"),
+      price: interaction.options.getNumber("preco"),
+      description: interaction.options.getString("descricao") || "",
+      deliveryMode: stockText ? "automatic" : product.deliveryMode,
+      stock: stockText ? stockText.split("|").map((item) => item.trim()).filter(Boolean) : [],
+      active: true
+    };
+
+    const fieldIndex = product.fields.findIndex((item) => item.id === fieldId);
+    if (fieldIndex >= 0) product.fields[fieldIndex] = { ...product.fields[fieldIndex], ...field };
+    else product.fields.push(field);
+
+    products[productIndex] = product;
+    await saveProducts(products);
+
+    await interaction.reply({
+      content: `Campo **${field.name}** salvo no produto **${product.name}**.`,
       embeds: [productEmbed(product, shop)],
       ephemeral: true
     });
@@ -1259,6 +1466,11 @@ async function handleAiModal(interaction, action) {
 
 async function createSupportTicket(interaction) {
   const shop = await getShopSettings(interaction.guildId);
+  if (isBlacklisted(shop, interaction.user.id)) {
+    await interaction.reply({ content: "Voce esta bloqueado de abrir atendimento nesta loja.", ephemeral: true });
+    return;
+  }
+
   const ticketId = `${Date.now().toString(36)}-${interaction.user.id.slice(-4)}`;
   const channelName = `suporte-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90);
 
@@ -1465,6 +1677,14 @@ async function handleShopButton(interaction, action) {
           .setStyle(TextInputStyle.Short)
           .setValue(shop.ticketCategoryId || "")
           .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("reviewChannelId")
+          .setLabel("ID do canal de avaliacoes")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.reviewChannelId || "")
+          .setRequired(false)
       )
     );
   }
@@ -1521,6 +1741,7 @@ async function handleShopModal(interaction, action) {
     settings.shop.logChannelId = interaction.fields.getTextInputValue("logChannelId").trim();
     settings.shop.publicLogChannelId = interaction.fields.getTextInputValue("publicLogChannelId").trim();
     settings.shop.ticketCategoryId = interaction.fields.getTextInputValue("ticketCategoryId").trim();
+    settings.shop.reviewChannelId = interaction.fields.getTextInputValue("reviewChannelId").trim();
   }
 
   if (action === "staff") {
@@ -1560,7 +1781,7 @@ async function handlePanelSelect(interaction) {
     return;
   }
 
-  await createProductTicket(interaction, product);
+  await beginProductPurchase(interaction, product);
 }
 
 async function handleProductButton(interaction, action, productId) {
@@ -1573,7 +1794,7 @@ async function handleProductButton(interaction, action, productId) {
   }
 
   if (action === "buy") {
-    await createProductTicket(interaction, product);
+    await beginProductPurchase(interaction, product);
     return;
   }
 
@@ -1583,6 +1804,359 @@ async function handleProductButton(interaction, action, productId) {
       ephemeral: true
     });
   }
+}
+
+async function publishProduct(channel, productId, guildId) {
+  const shop = await getShopSettings(guildId);
+  const products = await getProducts();
+  const product = products.find((item) => item.id === normalizeId(productId));
+  if (!product) return false;
+  await channel.send({ embeds: [productEmbed(product, shop)], components: productBuyRows(product) });
+  return true;
+}
+
+async function publishPanel(channel, panelId, guildId) {
+  const shop = await getShopSettings(guildId);
+  const products = await getProducts();
+  const panels = await getPanels();
+  const panel = panels.find((item) => item.id === normalizeId(panelId));
+  if (!panel) return false;
+  const panelProducts = panel.productIds
+    .map((productId) => products.find((product) => product.id === productId && product.active))
+    .filter(Boolean);
+  if (!panelProducts.length) return false;
+  await channel.send({ embeds: [panelEmbed(panel, panelProducts, shop)], components: [panelSelect(panel, panelProducts)] });
+  return true;
+}
+
+async function handleBlacklistCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode gerenciar blacklist.", ephemeral: true });
+    return;
+  }
+
+  const settings = await getGuildSettings(interaction.guildId);
+  settings.shop.blacklist = settings.shop.blacklist || [];
+  const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === "add") {
+    const user = interaction.options.getUser("usuario");
+    const reason = interaction.options.getString("motivo") || "Sem motivo informado";
+    const entry = { userId: user.id, reason, addedBy: interaction.user.id, addedAt: new Date().toISOString() };
+    const index = settings.shop.blacklist.findIndex((item) => item.userId === user.id);
+    if (index >= 0) settings.shop.blacklist[index] = entry;
+    else settings.shop.blacklist.push(entry);
+    await saveGuildSettings(interaction.guildId, settings);
+    await interaction.reply({ content: `<@${user.id}> foi adicionado a blacklist.`, ephemeral: true });
+    return;
+  }
+
+  if (subcommand === "remover") {
+    const user = interaction.options.getUser("usuario");
+    settings.shop.blacklist = settings.shop.blacklist.filter((item) => item.userId !== user.id);
+    await saveGuildSettings(interaction.guildId, settings);
+    await interaction.reply({ content: `<@${user.id}> foi removido da blacklist.`, ephemeral: true });
+    return;
+  }
+
+  const list = settings.shop.blacklist.length
+    ? settings.shop.blacklist.map((item) => `<@${item.userId}> - ${item.reason}`).join("\n")
+    : "Nenhum usuario bloqueado.";
+  await interaction.reply({ content: list, ephemeral: true });
+}
+
+async function handleTermsCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode configurar termos.", ephemeral: true });
+    return;
+  }
+
+  const settings = await getGuildSettings(interaction.guildId);
+  settings.shop.termsText = interaction.options.getString("texto");
+  settings.shop.termsRequired = interaction.options.getBoolean("obrigatorio") ?? true;
+  await saveGuildSettings(interaction.guildId, settings);
+
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(theme.primary)
+      .setTitle("Termos atualizados")
+      .setDescription(shortText(settings.shop.termsText, "Sem termos", 1500))
+      .addFields({ name: "Obrigatorio", value: yesNo(settings.shop.termsRequired), inline: true })],
+    ephemeral: true
+  });
+}
+
+function giveawayEmbed(giveaway) {
+  return new EmbedBuilder()
+    .setColor(theme.purple)
+    .setTitle("Sorteio")
+    .setDescription(`Premio: **${giveaway.prize}**\nTermina em: <t:${Math.floor(new Date(giveaway.endsAt).getTime() / 1000)}:R>`)
+    .addFields(
+      { name: "Vencedores", value: String(giveaway.winnersCount), inline: true },
+      { name: "Participantes", value: String(giveaway.participants.length), inline: true },
+      { name: "Requisito", value: giveaway.requiredRoleId ? `<@&${giveaway.requiredRoleId}>` : "Nenhum", inline: true }
+    )
+    .setFooter({ text: `ID ${giveaway.id}` });
+}
+
+function giveawayRows(giveawayId) {
+  return [new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`giveaway:join:${giveawayId}`)
+      .setLabel("Participar")
+      .setStyle(ButtonStyle.Primary)
+  )];
+}
+
+async function handleGiveawayCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode gerenciar sorteios.", ephemeral: true });
+    return;
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "criar") {
+    const minutes = Math.max(1, interaction.options.getInteger("minutos"));
+    const giveaway = {
+      id: Date.now().toString(36),
+      guildId: interaction.guildId,
+      channelId: interaction.channelId,
+      messageId: null,
+      prize: interaction.options.getString("premio"),
+      winnersCount: interaction.options.getInteger("vencedores") || 1,
+      requiredRoleId: interaction.options.getRole("cargo")?.id || null,
+      participants: [],
+      status: "open",
+      endsAt: new Date(Date.now() + minutes * 60000).toISOString(),
+      createdAt: new Date().toISOString()
+    };
+    const message = await interaction.channel.send({ embeds: [giveawayEmbed(giveaway)], components: giveawayRows(giveaway.id) });
+    giveaway.messageId = message.id;
+    const giveaways = await getGiveaways();
+    giveaways.push(giveaway);
+    await saveGiveaways(giveaways);
+    await interaction.reply({ content: `Sorteio criado com ID \`${giveaway.id}\`.`, ephemeral: true });
+    return;
+  }
+
+  await endGiveaway(interaction.options.getString("id"), interaction);
+}
+
+async function endGiveaway(giveawayId, interaction = null) {
+  const giveaways = await getGiveaways();
+  const index = giveaways.findIndex((item) => item.id === giveawayId);
+  const giveaway = giveaways[index];
+  if (!giveaway || giveaway.status !== "open") {
+    if (interaction) await interaction.reply({ content: "Sorteio nao encontrado ou ja encerrado.", ephemeral: true });
+    return;
+  }
+
+  const shuffled = [...giveaway.participants].sort(() => Math.random() - 0.5);
+  const winners = shuffled.slice(0, giveaway.winnersCount);
+  giveaway.status = "closed";
+  giveaway.winners = winners;
+  giveaway.closedAt = new Date().toISOString();
+  giveaways[index] = giveaway;
+  await saveGiveaways(giveaways);
+
+  const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+  if (channel?.isTextBased()) {
+    await channel.send(winners.length
+      ? `Sorteio **${giveaway.prize}** encerrado. Vencedor(es): ${winners.map((id) => `<@${id}>`).join(", ")}`
+      : `Sorteio **${giveaway.prize}** encerrado sem participantes.`);
+  }
+
+  if (interaction) await interaction.reply({ content: "Sorteio encerrado.", ephemeral: true });
+}
+
+async function handleGiveawayButton(interaction, action, giveawayId) {
+  if (action !== "join") return;
+
+  const giveaways = await getGiveaways();
+  const index = giveaways.findIndex((item) => item.id === giveawayId);
+  const giveaway = giveaways[index];
+  if (!giveaway || giveaway.status !== "open") {
+    await interaction.reply({ content: "Este sorteio ja foi encerrado.", ephemeral: true });
+    return;
+  }
+
+  if (giveaway.requiredRoleId && !interaction.member.roles.cache.has(giveaway.requiredRoleId)) {
+    await interaction.reply({ content: "Voce nao tem o cargo necessario para participar.", ephemeral: true });
+    return;
+  }
+
+  if (giveaway.participants.includes(interaction.user.id)) {
+    await interaction.reply({ content: "Voce ja esta participando.", ephemeral: true });
+    return;
+  }
+
+  giveaway.participants.push(interaction.user.id);
+  giveaways[index] = giveaway;
+  await saveGiveaways(giveaways);
+
+  await interaction.reply({ content: "Voce entrou no sorteio.", ephemeral: true });
+  await interaction.message.edit({ embeds: [giveawayEmbed(giveaway)], components: giveawayRows(giveaway.id) }).catch(() => null);
+}
+
+async function processScheduledTasks() {
+  const now = Date.now();
+
+  const giveaways = await getGiveaways();
+  for (const giveaway of giveaways.filter((item) => item.status === "open" && new Date(item.endsAt).getTime() <= now)) {
+    await endGiveaway(giveaway.id);
+  }
+
+  const reposts = await getReposts();
+  let changed = false;
+  for (const repost of reposts) {
+    if (new Date(repost.nextAt).getTime() > now) continue;
+    const channel = await client.channels.fetch(repost.channelId).catch(() => null);
+    if (channel?.isTextBased()) {
+      if (repost.type === "product") await publishProduct(channel, repost.id, repost.guildId).catch(() => null);
+      if (repost.type === "panel") await publishPanel(channel, repost.id, repost.guildId).catch(() => null);
+    }
+    repost.nextAt = new Date(Date.now() + repost.intervalMinutes * 60000).toISOString();
+    changed = true;
+  }
+  if (changed) await saveReposts(reposts);
+}
+
+async function handleRepostCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode configurar repost.", ephemeral: true });
+    return;
+  }
+
+  const type = interaction.options.getString("tipo");
+  const id = normalizeId(interaction.options.getString("id"));
+  const minutes = interaction.options.getInteger("minutos");
+  const reposts = await getReposts();
+  const key = `${interaction.guildId}:${interaction.channelId}:${type}:${id}`;
+
+  const filtered = reposts.filter((item) => item.key !== key);
+  if (minutes <= 0) {
+    await saveReposts(filtered);
+    await interaction.reply({ content: "Repost desativado para este item neste canal.", ephemeral: true });
+    return;
+  }
+
+  filtered.push({
+    key,
+    guildId: interaction.guildId,
+    channelId: interaction.channelId,
+    type,
+    id,
+    intervalMinutes: minutes,
+    nextAt: new Date(Date.now() + minutes * 60000).toISOString()
+  });
+  await saveReposts(filtered);
+  await interaction.reply({ content: `Repost configurado a cada ${minutes} minuto(s).`, ephemeral: true });
+}
+
+async function handleReviewCommand(interaction) {
+  const note = interaction.options.getInteger("nota");
+  const rating = Math.max(1, Math.min(5, note));
+  const orders = (await getOrders()).filter((order) => order.guildId === interaction.guildId && order.userId === interaction.user.id && order.status === "aprovado");
+  const order = orders[orders.length - 1];
+  if (!order) {
+    await interaction.reply({ content: "Voce precisa ter uma compra aprovada para avaliar.", ephemeral: true });
+    return;
+  }
+
+  const review = {
+    id: Date.now().toString(36),
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    orderId: order.id,
+    rating,
+    comment: interaction.options.getString("comentario") || "",
+    createdAt: new Date().toISOString()
+  };
+  const reviews = await getReviews();
+  reviews.push(review);
+  await saveReviews(reviews);
+
+  const shop = await getShopSettings(interaction.guildId);
+  const embed = new EmbedBuilder()
+    .setColor(theme.success)
+    .setTitle("Nova avaliacao")
+    .setDescription(`Nota: **${rating}/5**\n${review.comment || "Sem comentario."}`)
+    .addFields({ name: "Cliente", value: `<@${interaction.user.id}>`, inline: true });
+
+  if (shop.reviewChannelId) {
+    const channel = await interaction.guild.channels.fetch(shop.reviewChannelId).catch(() => null);
+    await channel?.send({ embeds: [embed] }).catch(() => null);
+  } else if (shop.publicLogChannelId) {
+    const channel = await interaction.guild.channels.fetch(shop.publicLogChannelId).catch(() => null);
+    await channel?.send({ embeds: [embed] }).catch(() => null);
+  }
+
+  await interaction.reply({ content: "Obrigado pela avaliacao.", ephemeral: true });
+}
+
+async function handleProtectionCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode configurar protecoes.", ephemeral: true });
+    return;
+  }
+
+  const settings = await getGuildSettings(interaction.guildId);
+  settings.protection = settings.protection || {};
+  settings.protection.antiLink = interaction.options.getBoolean("anti-link");
+  await saveGuildSettings(interaction.guildId, settings);
+
+  await interaction.reply({
+    content: `Anti-link ${settings.protection.antiLink ? "ativado" : "desativado"}.`,
+    ephemeral: true
+  });
+}
+
+async function beginProductPurchase(interaction, product, field = null, acceptedTerms = false) {
+  const fields = getProductFields(product).filter((item) => item.active !== false);
+  if (!field && fields.length) {
+    await interaction.reply({
+      content: `Escolha uma opcao de **${product.name}**:`,
+      components: [productFieldSelect(product)],
+      ephemeral: true
+    });
+    return;
+  }
+
+  await createProductTicket(interaction, product, field, acceptedTerms);
+}
+
+async function handleFieldSelect(interaction) {
+  const [, , productId] = interaction.customId.split(":");
+  const products = await getProducts();
+  const product = products.find((item) => item.id === productId);
+  const field = getProductFields(product || {}).find((item) => item.id === interaction.values[0]);
+
+  if (!product || !field) {
+    await interaction.reply({ content: "Opcao nao encontrada.", ephemeral: true });
+    return;
+  }
+
+  await beginProductPurchase(interaction, product, field);
+}
+
+async function handleTermsAccept(interaction, productId, fieldId) {
+  const products = await getProducts();
+  const product = products.find((item) => item.id === productId);
+  const field = fieldId && fieldId !== "base"
+    ? getProductFields(product || {}).find((item) => item.id === fieldId)
+    : null;
+
+  if (!product) {
+    await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+    return;
+  }
+
+  await createProductTicket(interaction, product, field, true);
 }
 
 async function handleConfigButton(interaction, action) {
@@ -1784,6 +2358,8 @@ async function handleCouponModal(interaction, orderId) {
 
   const products = await getProducts();
   const product = products.find((item) => item.id === order.productId);
+  const field = getProductFields(product || {}).find((item) => item.id === order.fieldId);
+  const item = field || product;
   if (!product || !product.couponsEnabled) {
     await interaction.reply({ content: "Este produto nao aceita cupom.", ephemeral: true });
     return;
@@ -1800,7 +2376,7 @@ async function handleCouponModal(interaction, orderId) {
 
   const discount = Math.max(0, Math.min(100, Number(coupon.discountPercent || 0)));
   order.coupon = { code: coupon.code, discountPercent: discount };
-  order.total = Number((Number(product.price) * (1 - discount / 100)).toFixed(2));
+  order.total = Number((Number(item.price) * (1 - discount / 100)).toFixed(2));
   order.updatedAt = new Date().toISOString();
   await saveOrder(order);
 
@@ -1810,7 +2386,7 @@ async function handleCouponModal(interaction, orderId) {
   });
 
   await interaction.channel.send({
-    embeds: [cartEmbed(order, product, await getShopSettings(interaction.guildId))],
+    embeds: [cartEmbed(order, item, await getShopSettings(interaction.guildId))],
     components: paymentRows(order.id)
   });
 }
@@ -1871,12 +2447,24 @@ async function handleApprove(interaction, orderId) {
       return;
     }
 
-    if (product.deliveryMode === "automatic") {
-      if (!product.stock || product.stock.length <= 0) {
+    const fields = getProductFields(product);
+    const fieldIndex = fields.findIndex((field) => field.id === order.fieldId);
+    const field = fieldIndex >= 0 ? fields[fieldIndex] : null;
+    const item = field || product;
+    const stock = item.stock || [];
+    const deliveryMode = item.deliveryMode || product.deliveryMode;
+
+    if (deliveryMode === "automatic") {
+      if (stock.length <= 0) {
         await interaction.reply({ content: "Produto sem estoque para entrega automatica.", ephemeral: true });
         return;
       }
-      const deliveredItem = product.stock.shift();
+      const deliveredItem = stock.shift();
+      if (field) {
+        product.fields[fieldIndex].stock = stock;
+      } else {
+        product.stock = stock;
+      }
       products[productIndex] = product;
       await saveProducts(products);
       order.deliveredItem = deliveredItem;
@@ -1897,7 +2485,7 @@ async function handleApprove(interaction, orderId) {
     embed = new EmbedBuilder()
       .setColor(theme.success)
       .setTitle("Compra aprovada")
-      .setDescription(`Produto **${product.name}** aprovado para <@${order.userId}>.${deliveryText}`)
+      .setDescription(`Produto **${order.itemName || product.name}** aprovado para <@${order.userId}>.${deliveryText}`)
       .addFields(
         { name: "Pedido", value: order.id, inline: true },
         { name: "Valor", value: brl(order.total), inline: true }
@@ -1923,6 +2511,7 @@ async function handleApprove(interaction, orderId) {
   }
 
   await interaction.channel.send({ content: `<@${order.userId}>`, embeds: [embed] });
+  await interaction.channel.send(`<@${order.userId}> depois que receber, voce pode avaliar com \`/avaliar\`.`).catch(() => null);
   await interaction.reply({ content: "Pedido aprovado.", ephemeral: true });
   await log(interaction.guild, embed);
   await publicSaleLog(interaction.guild, new EmbedBuilder()
@@ -1996,6 +2585,11 @@ function cartEmbed(order, product, shop) {
 }
 
 function productEmbed(product, shop) {
+  const fields = getProductFields(product).filter((field) => field.active !== false);
+  const fieldsText = fields.length
+    ? fields.slice(0, 8).map((field) => `**${field.name}** - ${brl(field.price)}`).join("\n")
+    : "Produto unico";
+
   return new EmbedBuilder()
     .setColor(theme.success)
     .setTitle(product.name)
@@ -2003,7 +2597,8 @@ function productEmbed(product, shop) {
     .addFields(
       { name: "Preco", value: brl(product.price), inline: true },
       { name: "Estoque", value: productStockText(product), inline: true },
-      { name: "Entrega", value: product.deliveryMode === "automatic" ? "Automatica" : "Manual", inline: true }
+      { name: "Entrega", value: product.deliveryMode === "automatic" ? "Automatica" : "Manual", inline: true },
+      { name: "Opcoes", value: fieldsText }
     )
     .setFooter({ text: `${shop.storeName || "Loja de Bots"} • ${product.couponsEnabled ? "Cupons aceitos" : "Sem cupons"}` });
 }
@@ -2021,6 +2616,20 @@ function productBuyRows(product) {
         .setStyle(ButtonStyle.Secondary)
     )
   ];
+}
+
+function productFieldSelect(product) {
+  const fields = getProductFields(product).filter((field) => field.active !== false);
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`field:select:${product.id}`)
+      .setPlaceholder("Escolha uma opcao")
+      .addOptions(fields.slice(0, 25).map((field) => ({
+        label: `${field.name} - ${brl(field.price)}`.slice(0, 100),
+        description: (field.description || "Comprar opcao").slice(0, 100),
+        value: field.id
+      })))
+  );
 }
 
 function panelEmbed(panel, products, shop) {
@@ -2058,6 +2667,8 @@ async function registerCommandsForGuild(guild) {
 
 client.once(Events.ClientReady, async () => {
   console.log(`Online como ${client.user.tag}`);
+  setInterval(() => processScheduledTasks().catch((error) => console.error("Erro nas tarefas agendadas:", error)), 60000);
+  await processScheduledTasks().catch((error) => console.error("Erro nas tarefas agendadas:", error));
 
   try {
     if (config.guildId) {
@@ -2095,6 +2706,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "gerar-pix") await handleGeneratePix(interaction);
       if (interaction.commandName === "painel-ia") await sendAiPanel(interaction);
       if (interaction.commandName === "ticket-painel") await sendTicketPanel(interaction);
+      if (interaction.commandName === "blacklist") await handleBlacklistCommand(interaction);
+      if (interaction.commandName === "termos") await handleTermsCommand(interaction);
+      if (interaction.commandName === "sorteio") await handleGiveawayCommand(interaction);
+      if (interaction.commandName === "repost") await handleRepostCommand(interaction);
+      if (interaction.commandName === "avaliar") await handleReviewCommand(interaction);
+      if (interaction.commandName === "protecao") await handleProtectionCommand(interaction);
       return;
     }
 
@@ -2108,8 +2725,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith("field:select:")) {
+      await handleFieldSelect(interaction);
+      return;
+    }
+
     if (interaction.isButton()) {
       const [, action, orderId] = interaction.customId.split(":");
+      if (interaction.customId.startsWith("terms:accept:")) {
+        const [, , productId, fieldId] = interaction.customId.split(":");
+        await handleTermsAccept(interaction, productId, fieldId);
+        return;
+      }
+      if (interaction.customId.startsWith("giveaway:")) {
+        await handleGiveawayButton(interaction, action, orderId);
+        return;
+      }
       if (interaction.customId === "support:open") {
         await createSupportTicket(interaction);
         return;
@@ -2170,11 +2801,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, async (message) => {
   try {
     if (!message.guild || message.author.bot) return;
+    const settings = await getGuildSettings(message.guild.id);
+    const shop = await getShopSettings(message.guild.id);
+
+    if (settings.protection.antiLink && !isStaff(message.member, shop) && /(https?:\/\/|discord\.gg\/|www\.)/i.test(message.content)) {
+      await message.delete().catch(() => null);
+      await log(message.guild, new EmbedBuilder()
+        .setColor(theme.danger)
+        .setTitle("Anti-link")
+        .setDescription(`Link removido de <@${message.author.id}> em <#${message.channel.id}>.`));
+      return;
+    }
 
     const ticket = await findTicketByChannel(message.channel.id);
     if (!ticket || ticket.claimedBy || ticket.userId !== message.author.id) return;
 
-    const settings = await getGuildSettings(message.guild.id);
     if (!settings.ai.enabled || ticket.aiReplies >= (settings.ai.maxReplies || 20)) return;
 
     await message.channel.sendTyping().catch(() => null);
