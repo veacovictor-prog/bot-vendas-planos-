@@ -1,0 +1,12 @@
+[
+  {
+    "id": "bot-vendas",
+    "name": "Bot de Vendas",
+    "price": 49.9,
+    "description": "Bot de vendas Discord com tickets, painel e suporte inicial.",
+    "deliveryMode": "manual",
+    "stock": [],
+    "active": true,
+    "couponsEnabled": true
+  }
+]

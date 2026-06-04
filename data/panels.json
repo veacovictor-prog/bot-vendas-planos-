@@ -1,0 +1,11 @@
+[
+  {
+    "id": "loja-principal",
+    "name": "Loja Principal",
+    "description": "Escolha um produto abaixo para abrir seu carrinho.",
+    "productIds": [
+      "bot-vendas"
+    ],
+    "active": true
+  }
+]

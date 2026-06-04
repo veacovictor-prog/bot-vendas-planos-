@@ -8,8 +8,16 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 - `/painel-loja`: configura nome da loja, Pix, canal de logs, categoria de tickets e cargo staff.
 - `/painel-config`: envia o painel para configurar boas-vindas, auto-cargo e anti-fake.
 - `/planos`: mostra os planos disponiveis.
+- `/criar produto`: cria produto com preco, descricao, entrega manual ou automatica e estoque.
+- `/criar painel`: cria painel com varios produtos.
+- `/criar cupom`: cria cupom de desconto.
+- `/set produto`: publica um produto no canal atual.
+- `/set painel`: publica um painel com menu de selecao.
+- `/estatistica`: mostra pedidos, aprovados e faturamento.
+- `/gerar-pix`: gera uma cobranca Pix manual com copia e cola.
 - Botao `Comprar`: cria ticket privado para pagamento.
 - Botao `Enviar comprovante`: abre modal para o cliente informar dados do pagamento.
+- Botao `Aplicar cupom`: aplica desconto no carrinho.
 - Botao `Aprovar`: marca pedido como aprovado e envia a mensagem de entrega.
 - Botao `Reprovar`: marca pedido como reprovado.
 - Botao `Fechar ticket`: fecha o canal do pedido.
@@ -17,6 +25,10 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 ## Modulos estilo Promisse Apps
 
 - **Sistema de vendas:** planos, ticket de compra, Pix e aprovacao por staff.
+- **Produtos e estoque:** produtos com entrega manual ou automatica.
+- **Painel multi-produto:** um menu com varios produtos em um painel so.
+- **Cupons:** desconto percentual com limite de uso opcional.
+- **Estatisticas:** pedidos totais, aprovados, em analise e faturamento aprovado.
 - **Boas-vindas:** mensagem customizavel com `{user}` para mencionar o membro.
 - **Auto-cargo:** cargo automatico para novos membros.
 - **Anti-fake:** detecta contas recentes e pode apenas logar ou expulsar automaticamente.
@@ -89,6 +101,55 @@ Depois use:
 ```txt
 /painel-config
 /setup-loja
+```
+
+## Fluxo novo de produtos
+
+### Criar produto manual
+
+```txt
+/criar produto id:bot-personalizado nome:Bot Personalizado preco:49.90 descricao:Bot sob encomenda entrega:manual
+```
+
+### Criar produto automatico com estoque
+
+Use `|` para separar os itens do estoque:
+
+```txt
+/criar produto id:template-vendas nome:Template Vendas preco:29.90 descricao:Entrega automatica entrega:automatica estoque:link1|link2|link3
+```
+
+Quando o staff aprovar o pagamento, o bot entrega um item do estoque e remove esse item automaticamente.
+
+### Criar cupom
+
+```txt
+/criar cupom codigo:PROMO10 desconto:10 usos:20
+```
+
+### Criar painel com varios produtos
+
+```txt
+/criar painel id:loja-principal nome:Loja Principal produtos:bot-personalizado,template-vendas descricao:Escolha seu bot abaixo
+```
+
+### Publicar produto ou painel
+
+```txt
+/set produto id:bot-personalizado
+/set painel id:loja-principal
+```
+
+### Ver estatisticas
+
+```txt
+/estatistica
+```
+
+### Gerar Pix manual
+
+```txt
+/gerar-pix valor:49.90 descricao:Bot personalizado
 ```
 
 ### 4. Pegar os IDs para o painel
@@ -167,6 +228,10 @@ Quando aparecer `Online como NomeDoBot` nos logs, entre no seu servidor e use:
 /setup-loja
 /painel-loja
 /painel-config
+/criar
+/set
+/estatistica
+/gerar-pix
 ```
 
 ### 10. Convidar o bot para o servidor
