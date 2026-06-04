@@ -33,6 +33,7 @@ const TICKETS_FILE = path.join(DATA_DIR, "tickets.json");
 const REVIEWS_FILE = path.join(DATA_DIR, "reviews.json");
 const GIVEAWAYS_FILE = path.join(DATA_DIR, "giveaways.json");
 const REPOSTS_FILE = path.join(DATA_DIR, "reposts.json");
+const APPS_FILE = path.join(DATA_DIR, "apps.json");
 
 const config = {
   token: process.env.DISCORD_TOKEN,
@@ -262,7 +263,10 @@ const commands = [
     .setName("protecao")
     .setDescription("Configura protecoes basicas do servidor.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addBooleanOption((option) => option.setName("anti-link").setDescription("Bloquear links de usuarios sem staff.").setRequired(true))
+    .addBooleanOption((option) => option.setName("anti-link").setDescription("Bloquear links de usuarios sem staff.").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("apps")
+    .setDescription("Gerencia o bot adquirido no plano.")
 ].map((command) => command.toJSON());
 
 const client = new Client({
@@ -273,6 +277,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent
   ]
 });
+const managedClients = new Map();
 
 function startHealthServer() {
   const port = Number(process.env.PORT);
@@ -393,6 +398,17 @@ async function saveReposts(reposts) {
   await writeJson(REPOSTS_FILE, reposts);
 }
 
+async function getApps() {
+  const apps = await readJson(APPS_FILE, null);
+  if (apps) return apps;
+  await writeJson(APPS_FILE, []);
+  return [];
+}
+
+async function saveApps(apps) {
+  await writeJson(APPS_FILE, apps);
+}
+
 async function saveTicket(ticket) {
   const tickets = await getTickets();
   const index = tickets.findIndex((item) => item.id === ticket.id);
@@ -473,6 +489,7 @@ async function getGuildSettings(guildId) {
 
   return {
     shop: { ...defaults.shop, ...(current.shop || {}) },
+    ai: { ...defaults.ai, ...(current.ai || {}) },
     welcome: { ...defaults.welcome, ...(current.welcome || {}) },
     autoRole: { ...defaults.autoRole, ...(current.autoRole || {}) },
     antiFake: { ...defaults.antiFake, ...(current.antiFake || {}) },
@@ -719,6 +736,370 @@ function supportRows() {
         .setStyle(ButtonStyle.Primary)
     )
   ];
+}
+
+function appRows() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("apps:add")
+        .setLabel("Conectar bot")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("apps:config")
+        .setLabel("Configurar")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("apps:list")
+        .setLabel("Meus bots")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("apps:remove")
+        .setLabel("Remover")
+        .setStyle(ButtonStyle.Danger)
+    )
+  ];
+}
+
+function appPanelEmbed(userApps, hasAccess) {
+  const appText = userApps.length
+    ? userApps.slice(0, 8).map((app) => `**${app.username || "Bot"}**\nID: \`${app.id}\`\nStatus: ${app.active ? "online" : "desligado"}`).join("\n\n")
+    : "Nenhum bot conectado ainda.";
+
+  return new EmbedBuilder()
+    .setColor(hasAccess ? theme.cyan : theme.warning)
+    .setTitle("Meus apps")
+    .setDescription("Conecte o bot comprado, troque nome, foto e status pelo Discord.")
+    .addFields(
+      { name: "Acesso", value: hasAccess ? "Liberado por compra aprovada ou cargo cliente" : "Precisa de compra aprovada", inline: true },
+      { name: "Bots conectados", value: appText }
+    )
+    .setFooter({ text: "Tokens ficam privados e nao aparecem em logs ou embeds." });
+}
+
+function appListEmbed(userApps) {
+  return new EmbedBuilder()
+    .setColor(theme.primary)
+    .setTitle("Bots conectados")
+    .setDescription(userApps.length
+      ? userApps.map((app) => [
+        `**${app.username || "Bot"}**`,
+        `ID: \`${app.id}\``,
+        `Status: ${app.active ? "online" : "desligado"}`,
+        `Texto: ${shortText(app.statusText, "Sem status", 120)}`
+      ].join("\n")).join("\n\n")
+      : "Voce ainda nao conectou nenhum bot.");
+}
+
+async function hasAppAccess(interaction, shop) {
+  if (isStaff(interaction.member, shop)) return true;
+  if (shop.clientRoleId && interaction.member?.roles?.cache?.has(shop.clientRoleId)) return true;
+
+  const orders = await getOrders();
+  return orders.some((order) => (
+    order.guildId === interaction.guildId
+    && order.userId === interaction.user.id
+    && order.status === "aprovado"
+  ));
+}
+
+function userApps(apps, interaction, shop) {
+  const staff = isStaff(interaction.member, shop);
+  return apps.filter((app) => (
+    app.guildId === interaction.guildId
+    && (app.ownerId === interaction.user.id || staff)
+  ));
+}
+
+async function fetchDiscordBot(token) {
+  const response = await fetch("https://discord.com/api/v10/users/@me", {
+    headers: { Authorization: `Bot ${token}` }
+  });
+
+  if (!response.ok) {
+    throw new Error("Token invalido ou bot sem acesso.");
+  }
+
+  const data = await response.json();
+  if (!data.bot) throw new Error("Esse token nao parece ser de bot.");
+  return data;
+}
+
+async function imageUrlToDataUri(url) {
+  const cleanUrl = String(url || "").trim();
+  if (!cleanUrl) return null;
+  if (!/^https?:\/\//i.test(cleanUrl)) throw new Error("A foto precisa ser uma URL http/https.");
+
+  const response = await fetch(cleanUrl);
+  if (!response.ok) throw new Error("Nao consegui baixar a foto.");
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!/^image\/(png|jpe?g|gif|webp)$/i.test(contentType)) {
+    throw new Error("Use uma imagem png, jpg, gif ou webp.");
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > 7 * 1024 * 1024) throw new Error("A imagem e grande demais.");
+  return `data:${contentType};base64,${buffer.toString("base64")}`;
+}
+
+async function patchDiscordBot(token, values) {
+  const body = {};
+  if (values.username) body.username = values.username;
+  if (values.avatarUrl) body.avatar = await imageUrlToDataUri(values.avatarUrl);
+  if (!Object.keys(body).length) return null;
+
+  const response = await fetch("https://discord.com/api/v10/users/@me", {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bot ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Discord recusou a alteracao do perfil (${response.status}). ${detail.slice(0, 120)}`);
+  }
+
+  return response.json();
+}
+
+async function startManagedApp(app) {
+  if (!app?.active || !app.token) return;
+
+  const previous = managedClients.get(app.id);
+  if (previous) {
+    previous.destroy();
+    managedClients.delete(app.id);
+  }
+
+  const managed = new Client({ intents: [GatewayIntentBits.Guilds] });
+  managed.once(Events.ClientReady, () => {
+    const activity = app.statusText ? [{ name: app.statusText.slice(0, 128), type: 0 }] : [];
+    managed.user.setPresence({ status: app.presence || "online", activities: activity });
+    console.log(`App gerenciado online: ${managed.user.tag} (${app.id})`);
+  });
+  managed.on("error", (error) => console.error(`Erro no app gerenciado ${app.id}:`, error.message));
+  managedClients.set(app.id, managed);
+  await managed.login(app.token);
+}
+
+async function startManagedApps() {
+  const apps = await getApps();
+  for (const app of apps.filter((item) => item.active)) {
+    await startManagedApp(app).catch((error) => console.error(`Nao ligou app ${app.id}:`, error.message));
+  }
+}
+
+async function stopManagedApp(appId) {
+  const managed = managedClients.get(appId);
+  if (!managed) return;
+  managed.destroy();
+  managedClients.delete(appId);
+}
+
+async function sendAppsPanel(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  const access = await hasAppAccess(interaction, shop);
+  const apps = await getApps();
+
+  await interaction.reply({
+    embeds: [appPanelEmbed(userApps(apps, interaction, shop), access)],
+    components: access ? appRows() : [],
+    ephemeral: true
+  });
+}
+
+function showAppModal(interaction, action) {
+  const isAdd = action === "add";
+  const modal = new ModalBuilder()
+    .setCustomId(`apps-modal:${action}`)
+    .setTitle(isAdd ? "Conectar bot" : action === "config" ? "Configurar bot" : "Remover bot");
+
+  if (isAdd) {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("token")
+        .setLabel("Token do bot")
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("username")
+        .setLabel("Novo nome do bot")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("avatarUrl")
+        .setLabel("URL da foto/avatar")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("statusText")
+        .setLabel("Status/bio curta")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("bio")
+        .setLabel("Descricao interna")
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false))
+    );
+  } else if (action === "config") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("appId")
+        .setLabel("ID do bot")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("username")
+        .setLabel("Novo nome")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("avatarUrl")
+        .setLabel("Nova URL da foto")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("statusText")
+        .setLabel("Novo status/bio curta")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("bio")
+        .setLabel("Descricao interna")
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false))
+    );
+  } else {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder()
+        .setCustomId("appId")
+        .setLabel("ID do bot")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true))
+    );
+  }
+
+  return interaction.showModal(modal);
+}
+
+async function handleAppsButton(interaction, action) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!(await hasAppAccess(interaction, shop))) {
+    await interaction.reply({ content: "Voce precisa ter uma compra aprovada ou cargo cliente para usar /apps.", ephemeral: true });
+    return;
+  }
+
+  if (action === "list") {
+    const apps = await getApps();
+    await interaction.reply({ embeds: [appListEmbed(userApps(apps, interaction, shop))], ephemeral: true });
+    return;
+  }
+
+  if (["add", "config", "remove"].includes(action)) {
+    await showAppModal(interaction, action);
+  }
+}
+
+function modalValue(interaction, name) {
+  return interaction.fields.getTextInputValue(name)?.trim() || "";
+}
+
+async function handleAppsModal(interaction, action) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!(await hasAppAccess(interaction, shop))) {
+    await interaction.reply({ content: "Voce precisa ter uma compra aprovada para gerenciar apps.", ephemeral: true });
+    return;
+  }
+
+  const apps = await getApps();
+
+  if (action === "add") {
+    await interaction.deferReply({ ephemeral: true });
+    const token = modalValue(interaction, "token");
+    const username = modalValue(interaction, "username").slice(0, 32);
+    const avatarUrl = modalValue(interaction, "avatarUrl");
+    const statusText = modalValue(interaction, "statusText").slice(0, 128);
+    const bio = modalValue(interaction, "bio").slice(0, 900);
+
+    let botUser = await fetchDiscordBot(token);
+    const patched = await patchDiscordBot(token, { username, avatarUrl });
+    if (patched) botUser = patched;
+
+    const record = {
+      id: botUser.id,
+      guildId: interaction.guildId,
+      ownerId: interaction.user.id,
+      username: botUser.username,
+      token,
+      avatarUrl,
+      statusText,
+      bio,
+      presence: "online",
+      active: true,
+      updatedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+
+    const index = apps.findIndex((app) => app.guildId === interaction.guildId && app.id === record.id);
+    if (index >= 0 && apps[index].ownerId !== interaction.user.id && !isStaff(interaction.member, shop)) {
+      await interaction.editReply("Esse bot ja esta conectado por outro cliente.");
+      return;
+    }
+
+    if (index >= 0) {
+      record.createdAt = apps[index].createdAt || record.createdAt;
+      apps[index] = { ...apps[index], ...record };
+    } else {
+      apps.push(record);
+    }
+    await saveApps(apps);
+    await startManagedApp(record);
+
+    await interaction.editReply(`Bot **${record.username}** conectado. ID: \`${record.id}\`.`);
+    return;
+  }
+
+  const appId = modalValue(interaction, "appId");
+  const index = apps.findIndex((app) => app.guildId === interaction.guildId && app.id === appId);
+  const app = apps[index];
+  if (!app || (app.ownerId !== interaction.user.id && !isStaff(interaction.member, shop))) {
+    await interaction.reply({ content: "Bot nao encontrado nos seus apps.", ephemeral: true });
+    return;
+  }
+
+  if (action === "remove") {
+    apps.splice(index, 1);
+    await saveApps(apps);
+    await stopManagedApp(app.id);
+    await interaction.reply({ content: `Bot \`${app.id}\` removido e desligado.`, ephemeral: true });
+    return;
+  }
+
+  if (action === "config") {
+    await interaction.deferReply({ ephemeral: true });
+    const username = modalValue(interaction, "username").slice(0, 32);
+    const avatarUrl = modalValue(interaction, "avatarUrl");
+    const statusText = modalValue(interaction, "statusText").slice(0, 128);
+    const bio = modalValue(interaction, "bio").slice(0, 900);
+    const patched = await patchDiscordBot(app.token, { username, avatarUrl });
+
+    app.username = patched?.username || username || app.username;
+    if (avatarUrl) app.avatarUrl = avatarUrl;
+    if (statusText) app.statusText = statusText;
+    if (bio) app.bio = bio;
+    app.active = true;
+    app.updatedAt = new Date().toISOString();
+    apps[index] = app;
+    await saveApps(apps);
+    await startManagedApp(app);
+
+    await interaction.editReply(`Bot **${app.username || app.id}** atualizado e online.`);
+  }
 }
 
 function ticketRows(ticketId) {
@@ -2669,6 +3050,7 @@ client.once(Events.ClientReady, async () => {
   console.log(`Online como ${client.user.tag}`);
   setInterval(() => processScheduledTasks().catch((error) => console.error("Erro nas tarefas agendadas:", error)), 60000);
   await processScheduledTasks().catch((error) => console.error("Erro nas tarefas agendadas:", error));
+  await startManagedApps().catch((error) => console.error("Erro ao ligar apps gerenciados:", error));
 
   try {
     if (config.guildId) {
@@ -2712,6 +3094,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "repost") await handleRepostCommand(interaction);
       if (interaction.commandName === "avaliar") await handleReviewCommand(interaction);
       if (interaction.commandName === "protecao") await handleProtectionCommand(interaction);
+      if (interaction.commandName === "apps") await sendAppsPanel(interaction);
       return;
     }
 
@@ -2732,6 +3115,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isButton()) {
       const [, action, orderId] = interaction.customId.split(":");
+      if (interaction.customId.startsWith("apps:")) {
+        await handleAppsButton(interaction, action);
+        return;
+      }
       if (interaction.customId.startsWith("terms:accept:")) {
         const [, , productId, fieldId] = interaction.customId.split(":");
         await handleTermsAccept(interaction, productId, fieldId);
@@ -2775,6 +3162,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isModalSubmit()) {
       const [, action, orderId] = interaction.customId.split(":");
+      if (interaction.customId.startsWith("apps-modal:")) {
+        await handleAppsModal(interaction, action);
+        return;
+      }
       if (interaction.customId.startsWith("shopcfg-modal:")) {
         await handleShopModal(interaction, action);
         return;
