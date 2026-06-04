@@ -461,9 +461,16 @@ function defaultGuildSettings() {
         pix: true,
         manualProof: true,
         mercadoPago: false,
-        wallet: false
+        wallet: false,
+        efiBank: false
       },
+      paymentProvider: "manual",
       mercadoPagoAccessToken: "",
+      efiClientId: "",
+      efiClientSecret: "",
+      efiCertificateBase64: "",
+      efiPixKey: "",
+      efiSandbox: false,
       termsRequired: false,
       termsText: "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
       blacklist: []
@@ -531,9 +538,16 @@ async function getShopSettings(guildId) {
       pix: settings.shop?.paymentMethods?.pix !== false,
       manualProof: settings.shop?.paymentMethods?.manualProof !== false,
       mercadoPago: Boolean(settings.shop?.paymentMethods?.mercadoPago),
-      wallet: Boolean(settings.shop?.paymentMethods?.wallet)
+      wallet: Boolean(settings.shop?.paymentMethods?.wallet),
+      efiBank: Boolean(settings.shop?.paymentMethods?.efiBank)
     },
+    paymentProvider: settings.shop?.paymentProvider || process.env.PAYMENT_PROVIDER || "manual",
     mercadoPagoAccessToken: settings.shop?.mercadoPagoAccessToken || process.env.MERCADO_PAGO_ACCESS_TOKEN || "",
+    efiClientId: settings.shop?.efiClientId || process.env.EFI_CLIENT_ID || "",
+    efiClientSecret: settings.shop?.efiClientSecret || process.env.EFI_CLIENT_SECRET || "",
+    efiCertificateBase64: settings.shop?.efiCertificateBase64 || process.env.EFI_CERTIFICATE_BASE64 || "",
+    efiPixKey: settings.shop?.efiPixKey || process.env.EFI_PIX_KEY || settings.shop?.pixKey || config.pixKey || "",
+    efiSandbox: String(settings.shop?.efiSandbox ?? process.env.EFI_SANDBOX ?? "false").toLowerCase() === "true",
     termsRequired: Boolean(settings.shop?.termsRequired),
     termsText: settings.shop?.termsText || "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
     blacklist: settings.shop?.blacklist || []
@@ -594,9 +608,16 @@ function paymentMethodsText(shop) {
     methods.pix ? "Pix" : null,
     methods.manualProof ? "Comprovante" : null,
     methods.mercadoPago ? "Mercado Pago" : null,
+    methods.efiBank ? "Efí Bank" : null,
     methods.wallet ? "Carteira" : null
   ].filter(Boolean);
   return active.length ? active.join(", ") : "Nenhum ativo";
+}
+
+function autoPaymentProvider(shop) {
+  if ((shop.paymentProvider || "").toLowerCase() === "efi" || shop.paymentMethods?.efiBank) return "efi";
+  if ((shop.paymentProvider || "").toLowerCase() === "mercadopago" || shop.paymentMethods?.mercadoPago || shop.paymentMethods?.wallet) return "mercadopago";
+  return "manual";
 }
 
 function parsePrice(value) {
@@ -692,7 +713,7 @@ function shopPanelEmbed(shop) {
       { name: "Pix", value: shop.pixKey ? `\`${shop.pixKey}\`` : "Nao configurado", inline: true },
       { name: "Vendas", value: shop.salesEnabled ? "Ligadas" : "Desligadas", inline: true },
       { name: "Pagamentos", value: paymentMethodsText(shop), inline: true },
-      { name: "Carteira MP", value: shop.mercadoPagoAccessToken ? "Token configurado" : "Token pendente", inline: true },
+      { name: "Pix auto", value: autoPaymentProvider(shop) === "efi" ? "Efí Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Nao configurado", inline: true },
       { name: "Suporte", value: shop.supportUrl || "Nao configurado", inline: true },
       { name: "Log privada", value: shop.logChannelId ? `<#${shop.logChannelId}>` : "Nao configurado", inline: true },
       { name: "Log publica", value: shop.publicLogChannelId ? `<#${shop.publicLogChannelId}>` : "Nao configurado", inline: true },
@@ -1494,7 +1515,7 @@ function paymentRows(orderId) {
       new ButtonBuilder()
         .setCustomId(`order:walletpix:${orderId}`)
         .setEmoji("💼")
-        .setLabel("Pix carteira")
+        .setLabel("Pix auto")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`order:checkpix:${orderId}`)
@@ -1604,6 +1625,62 @@ async function getMercadoPagoPayment(paymentId, shop) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`Erro ao verificar Pix (${response.status}).`);
   return data;
+}
+
+function efiClient(shop) {
+  if (!shop.efiClientId || !shop.efiClientSecret || !shop.efiCertificateBase64) {
+    throw new Error("Efí Bank nao configurado. Preencha client id, client secret e certificado base64.");
+  }
+
+  const EfiPay = require("sdk-node-apis-efi");
+  return new EfiPay({
+    sandbox: Boolean(shop.efiSandbox),
+    client_id: shop.efiClientId,
+    client_secret: shop.efiClientSecret,
+    certificate: shop.efiCertificateBase64,
+    cert_base64: true
+  });
+}
+
+async function createEfiPix(order, shop) {
+  const amount = orderAmount(order);
+  if (!amount || amount <= 0) throw new Error("Valor do pedido invalido.");
+  const pixKey = shop.efiPixKey || shop.pixKey;
+  if (!pixKey) throw new Error("Chave Pix da Efí nao configurada.");
+
+  const efipay = efiClient(shop);
+  const body = {
+    calendario: { expiracao: 3600 },
+    valor: { original: amount.toFixed(2) },
+    chave: pixKey,
+    solicitacaoPagador: `Pedido ${order.id}`,
+    infoAdicionais: [
+      { nome: "Loja", valor: String(shop.storeName || "Loja").slice(0, 50) },
+      { nome: "Pedido", valor: String(order.id).slice(0, 50) }
+    ]
+  };
+
+  const charge = await efipay.pixCreateImmediateCharge({}, body);
+  const qr = charge.loc?.id ? await efipay.pixGenerateQRCode({ id: charge.loc.id }) : {};
+  return {
+    provider: "efibank",
+    paymentId: charge.txid,
+    status: charge.status || "ATIVA",
+    qrCode: qr.qrcode || charge.pixCopiaECola || "",
+    ticketUrl: qr.linkVisualizacao || charge.location || "",
+    txid: charge.txid,
+    locId: charge.loc?.id || null
+  };
+}
+
+async function getEfiPixPayment(txid, shop) {
+  const efipay = efiClient(shop);
+  return efipay.pixDetailCharge({ txid });
+}
+
+function isAutoPaymentApproved(payment, provider) {
+  if (provider === "efibank") return payment.status === "CONCLUIDA";
+  return payment.status === "approved";
 }
 
 async function createOrderTicket(interaction, plan) {
@@ -2064,8 +2141,10 @@ async function handleWalletStatsCommand(interaction) {
   }
 
   const orders = (await getOrders()).filter((order) => order.guildId === interaction.guildId && order.walletPix?.paymentId);
-  const approved = orders.filter((order) => order.status === "aprovado" && order.walletPix.status === "approved");
-  const pending = orders.filter((order) => order.walletPix.status !== "approved");
+  const approved = orders.filter((order) => order.status === "aprovado" && (
+    order.walletPix.status === "approved" || order.walletPix.status === "CONCLUIDA"
+  ));
+  const pending = orders.filter((order) => !(order.walletPix.status === "approved" || order.walletPix.status === "CONCLUIDA"));
   const approvedTotal = approved.reduce((sum, order) => sum + orderAmount(order), 0);
   const pendingTotal = pending.reduce((sum, order) => sum + orderAmount(order), 0);
 
@@ -2073,9 +2152,11 @@ async function handleWalletStatsCommand(interaction) {
     embeds: [new EmbedBuilder()
       .setColor(theme.success)
       .setTitle("Carteira integrada")
-      .setDescription("Resumo dos Pix gerados pelo Mercado Pago. O saque e feito na sua conta Mercado Pago.")
+      .setDescription("Resumo dos Pix automáticos. O saque e feito na sua conta do provedor configurado.")
       .addFields(
-        { name: "Token MP", value: shop.mercadoPagoAccessToken ? "Configurado" : "Pendente", inline: true },
+        { name: "Provedor ativo", value: autoPaymentProvider(shop) === "efi" ? "Efí Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Pendente", inline: true },
+        { name: "Efí Bank", value: shop.efiClientId ? "Configurado" : "Pendente", inline: true },
+        { name: "Mercado Pago", value: shop.mercadoPagoAccessToken ? "Configurado" : "Pendente", inline: true },
         { name: "Recebido aprovado", value: brl(approvedTotal), inline: true },
         { name: "Pendente", value: brl(pendingTotal), inline: true },
         { name: "Pedidos aprovados", value: String(approved.length), inline: true },
@@ -2469,10 +2550,42 @@ async function handleShopButton(interaction, action) {
     modal.addComponents(
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
+          .setCustomId("paymentProvider")
+          .setLabel("Provedor: efi ou mercadopago")
+          .setStyle(TextInputStyle.Short)
+          .setValue(autoPaymentProvider(shop) === "efi" ? "efi" : autoPaymentProvider(shop) === "mercadopago" ? "mercadopago" : "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
           .setCustomId("mercadoPagoAccessToken")
           .setLabel("Access Token Mercado Pago")
-          .setStyle(TextInputStyle.Paragraph)
+          .setStyle(TextInputStyle.Short)
           .setValue(shop.mercadoPagoAccessToken || "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("efiClientId")
+          .setLabel("Efí Client ID")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.efiClientId || "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("efiClientSecret")
+          .setLabel("Efí Client Secret")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.efiClientSecret || "")
+          .setRequired(false)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("efiCertificateBase64")
+          .setLabel("Efí certificado Pix base64")
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(shop.efiCertificateBase64 || "")
           .setRequired(false)
       )
     );
@@ -2574,10 +2687,17 @@ async function handleShopModal(interaction, action) {
   }
 
   if (action === "wallet") {
+    const provider = interaction.fields.getTextInputValue("paymentProvider").trim().toLowerCase();
     settings.shop.mercadoPagoAccessToken = interaction.fields.getTextInputValue("mercadoPagoAccessToken").trim();
+    settings.shop.efiClientId = interaction.fields.getTextInputValue("efiClientId").trim();
+    settings.shop.efiClientSecret = interaction.fields.getTextInputValue("efiClientSecret").trim();
+    settings.shop.efiCertificateBase64 = interaction.fields.getTextInputValue("efiCertificateBase64").trim();
+    settings.shop.efiPixKey = settings.shop.pixKey || settings.shop.efiPixKey || "";
+    settings.shop.paymentProvider = provider === "efi" ? "efi" : provider === "mercadopago" ? "mercadopago" : settings.shop.paymentProvider || "manual";
     settings.shop.paymentMethods = settings.shop.paymentMethods || {};
-    settings.shop.paymentMethods.wallet = Boolean(settings.shop.mercadoPagoAccessToken);
+    settings.shop.paymentMethods.wallet = Boolean(settings.shop.mercadoPagoAccessToken || settings.shop.efiClientId);
     settings.shop.paymentMethods.mercadoPago = Boolean(settings.shop.mercadoPagoAccessToken);
+    settings.shop.paymentMethods.efiBank = Boolean(settings.shop.efiClientId && settings.shop.efiClientSecret && settings.shop.efiCertificateBase64);
   }
 
   if (action === "channels") {
@@ -3263,20 +3383,25 @@ async function handleWalletPix(interaction, orderId) {
 
   const shop = await getShopSettings(interaction.guildId);
   await interaction.deferReply({ ephemeral: true });
+  const provider = autoPaymentProvider(shop);
 
   if (order.walletPix?.paymentId) {
     await interaction.editReply(`Ja existe um Pix gerado para este pedido. Use **Verificar Pix**.\n\nCopia e cola:\n\`\`\`\n${order.walletPix.qrCode || "Nao disponivel"}\n\`\`\``);
     return;
   }
 
-  const payment = await createMercadoPagoPix(order, shop, interaction.user);
+  const payment = provider === "efi"
+    ? await createEfiPix(order, shop)
+    : await createMercadoPagoPix(order, shop, interaction.user);
   const transactionData = payment.point_of_interaction?.transaction_data || {};
   order.walletPix = {
-    provider: "mercadopago",
-    paymentId: String(payment.id),
+    provider: provider === "efi" ? "efibank" : "mercadopago",
+    paymentId: String(provider === "efi" ? payment.paymentId : payment.id),
+    txid: provider === "efi" ? payment.txid : null,
+    locId: provider === "efi" ? payment.locId : null,
     status: payment.status || "pending",
-    qrCode: transactionData.qr_code || "",
-    ticketUrl: transactionData.ticket_url || "",
+    qrCode: provider === "efi" ? payment.qrCode : transactionData.qr_code || "",
+    ticketUrl: provider === "efi" ? payment.ticketUrl : transactionData.ticket_url || "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -3287,11 +3412,14 @@ async function handleWalletPix(interaction, orderId) {
     embeds: [new EmbedBuilder()
       .setColor(theme.success)
       .setTitle("Pix carteira gerado")
-      .setDescription("Pague pelo Pix abaixo. O valor cai na sua conta Mercado Pago configurada.")
+      .setDescription(order.walletPix.provider === "efibank"
+        ? "Pague pelo Pix abaixo. O valor cai na sua conta Efí Bank configurada."
+        : "Pague pelo Pix abaixo. O valor cai na sua conta Mercado Pago configurada.")
       .addFields(
         { name: "Pedido", value: order.id, inline: true },
         { name: "Valor", value: brl(orderAmount(order)), inline: true },
-        { name: "Pagamento MP", value: `\`${order.walletPix.paymentId}\``, inline: true },
+        { name: "Provedor", value: order.walletPix.provider === "efibank" ? "Efí Bank" : "Mercado Pago", inline: true },
+        { name: "Pagamento", value: `\`${order.walletPix.paymentId}\``, inline: true },
         { name: "Copia e cola", value: `\`\`\`\n${shortText(order.walletPix.qrCode, "Nao retornado", 900)}\n\`\`\`` },
         { name: "Link", value: order.walletPix.ticketUrl || "Nao retornado" }
       )]
@@ -3318,15 +3446,18 @@ async function handleCheckWalletPix(interaction, orderId) {
   }
 
   await interaction.deferReply({ ephemeral: true });
-  const payment = await getMercadoPagoPayment(order.walletPix.paymentId, shop);
+  const provider = order.walletPix.provider || "mercadopago";
+  const payment = provider === "efibank"
+    ? await getEfiPixPayment(order.walletPix.txid || order.walletPix.paymentId, shop)
+    : await getMercadoPagoPayment(order.walletPix.paymentId, shop);
   order.walletPix.status = payment.status || order.walletPix.status;
   order.walletPix.statusDetail = payment.status_detail || "";
   order.walletPix.updatedAt = new Date().toISOString();
   order.updatedAt = new Date().toISOString();
   await saveOrder(order);
 
-  if (payment.status === "approved") {
-    await interaction.editReply("Pix aprovado no Mercado Pago. Finalizando a entrega...");
+  if (isAutoPaymentApproved(payment, provider)) {
+    await interaction.editReply(`Pix aprovado no ${provider === "efibank" ? "Efí Bank" : "Mercado Pago"}. Finalizando a entrega...`);
     await handleApprove(interaction, orderId, false);
     return;
   }

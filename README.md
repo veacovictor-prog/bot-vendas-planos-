@@ -192,12 +192,17 @@ Quando o produto tiver campos, o cliente clica em comprar e escolhe a opcao no m
 
 ### Carteira integrada
 
-A carteira integrada usa Mercado Pago. O bot gera o Pix, o cliente paga, o dinheiro cai na sua conta Mercado Pago e voce saca depois pelo painel/app do Mercado Pago.
+A carteira integrada pode usar Efí Bank ou Mercado Pago. No Efí Bank o bot gera Pix pela API Pix, o cliente paga, o dinheiro cai na sua conta Efí e voce saca depois pelo painel/app da Efí.
 
 Configure de um destes jeitos:
 
 ```env
-MERCADO_PAGO_ACCESS_TOKEN=APP_USR...
+PAYMENT_PROVIDER=efi
+EFI_CLIENT_ID=seu_client_id
+EFI_CLIENT_SECRET=seu_client_secret
+EFI_CERTIFICATE_BASE64=certificado_pix_em_base64
+EFI_PIX_KEY=sua_chave_pix_cadastrada_na_efi
+EFI_SANDBOX=false
 ```
 
 Ou pelo Discord:
@@ -209,8 +214,8 @@ Loja > Carteira MP
 
 No carrinho o cliente usa:
 
-- `Pix carteira`: gera o Pix copia e cola do Mercado Pago.
-- `Verificar Pix`: consulta o Mercado Pago; se estiver aprovado, o bot aprova e entrega automaticamente.
+- `Pix auto`: gera o Pix copia e cola no Efí Bank ou Mercado Pago.
+- `Verificar Pix`: consulta o provedor; se estiver aprovado, o bot aprova e entrega automaticamente.
 
 Para ver o resumo:
 
@@ -218,7 +223,7 @@ Para ver o resumo:
 /carteira
 ```
 
-O bot nao faz saque bancario automatico. Ele confirma e registra o pagamento; o saque fica na sua conta Mercado Pago.
+O bot nao faz saque bancario automatico. Ele confirma e registra o pagamento; o saque fica na sua conta Efí Bank ou Mercado Pago.
 
 ## Recursos premium
 
