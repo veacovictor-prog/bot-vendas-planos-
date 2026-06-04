@@ -692,28 +692,34 @@ function shopRows() {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("shopcfg:identity")
+        .setEmoji("🏪")
         .setLabel("Loja")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("shopcfg:payment")
+        .setEmoji("💳")
         .setLabel("Pagamentos")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("shopcfg:channels")
+        .setEmoji("📁")
         .setLabel("Canais")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("shopcfg:staff")
+        .setEmoji("🛠️")
         .setLabel("Staff")
         .setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("shopcfg:clientrole")
+        .setEmoji("👤")
         .setLabel("Cargo cliente")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("shopcfg:sales")
+        .setEmoji("🔌")
         .setLabel("Vendas")
         .setStyle(ButtonStyle.Secondary)
     )
@@ -741,14 +747,17 @@ function aiRows() {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("aicfg:api")
+        .setEmoji("🔑")
         .setLabel("API")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("aicfg:training")
+        .setEmoji("📚")
         .setLabel("Treinamento")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("aicfg:behavior")
+        .setEmoji("⚙️")
         .setLabel("Comportamento")
         .setStyle(ButtonStyle.Secondary)
     )
@@ -772,8 +781,9 @@ function supportRows() {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("support:open")
+        .setEmoji("🎧")
         .setLabel("Abrir ticket")
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -813,20 +823,24 @@ function botConfigRows() {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("botcfg:store")
+        .setEmoji("🛒")
         .setLabel("Loja")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:tickets")
+        .setEmoji("🎫")
         .setLabel("Tickets")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:protection")
+        .setEmoji("🛡️")
         .setLabel("Protecao")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:apps")
+        .setEmoji("🤖")
         .setLabel("Apps")
-        .setStyle(ButtonStyle.Success)
+        .setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -851,20 +865,24 @@ function protectionRows() {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("protcfg:antilink")
+        .setEmoji("🔗")
         .setLabel("Anti-link")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("protcfg:antifake")
+        .setEmoji("🕵️")
         .setLabel("Anti-fake")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("protcfg:antibot")
+        .setEmoji("🤖")
         .setLabel("Anti-bot")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:home")
+        .setEmoji("⬅️")
         .setLabel("Voltar")
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -980,20 +998,24 @@ function appRows() {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("apps:add")
+        .setEmoji("➕")
         .setLabel("Conectar bot")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("apps:config")
+        .setEmoji("🛠️")
         .setLabel("Configurar")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("apps:list")
+        .setEmoji("📋")
         .setLabel("Meus bots")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("apps:remove")
+        .setEmoji("🗑️")
         .setLabel("Remover")
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -1344,16 +1366,19 @@ function ticketRows(ticketId) {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`ticket:claim:${ticketId}`)
+        .setEmoji("🙋")
         .setLabel("Assumir")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`ticket:lastbuy:${ticketId}`)
+        .setEmoji("🧾")
         .setLabel("Ultima compra")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`ticket:close:${ticketId}`)
+        .setEmoji("🔒")
         .setLabel("Fechar")
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -1393,14 +1418,17 @@ function configRows() {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("config:welcome")
+        .setEmoji("👋")
         .setLabel("Boas-vindas")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("config:autorole")
+        .setEmoji("🏷️")
         .setLabel("Auto-cargo")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("config:antifake")
+        .setEmoji("🛡️")
         .setLabel("Anti-fake")
         .setStyle(ButtonStyle.Secondary)
     )
@@ -1425,26 +1453,31 @@ function paymentRows(orderId) {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`order:proof:${orderId}`)
+        .setEmoji("📎")
         .setLabel("Enviar comprovante")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`order:coupon:${orderId}`)
+        .setEmoji("🏷️")
         .setLabel("Aplicar cupom")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`order:close:${orderId}`)
+        .setEmoji("🔒")
         .setLabel("Fechar ticket")
         .setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`order:approve:${orderId}`)
+        .setEmoji("✅")
         .setLabel("Aprovar")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`order:reject:${orderId}`)
+        .setEmoji("❌")
         .setLabel("Reprovar")
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -1600,8 +1633,9 @@ async function createProductTicket(interaction, product, field = null, acceptedT
       components: [new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`terms:accept:${product.id}:${item.fieldId || "base"}`)
+          .setEmoji("✅")
           .setLabel("Aceito os termos")
-          .setStyle(ButtonStyle.Success)
+          .setStyle(ButtonStyle.Secondary)
       )],
       ephemeral: true
     });
@@ -2586,8 +2620,9 @@ function giveawayRows(giveawayId) {
   return [new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`giveaway:join:${giveawayId}`)
+      .setEmoji("🎉")
       .setLabel("Participar")
-      .setStyle(ButtonStyle.Primary)
+      .setStyle(ButtonStyle.Secondary)
   )];
 }
 
@@ -3309,10 +3344,12 @@ function productBuyRows(product) {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`product:buy:${product.id}`)
+        .setEmoji("🛒")
         .setLabel("Comprar agora")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`product:stock:${product.id}`)
+        .setEmoji("📦")
         .setLabel("Ver estoque")
         .setStyle(ButtonStyle.Secondary)
     )
