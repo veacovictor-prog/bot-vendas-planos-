@@ -402,11 +402,30 @@ function money(plan) {
   return `R$ ${plan.price}/${plan.period}`;
 }
 
+const theme = {
+  dark: 0x0f172a,
+  primary: 0x2563eb,
+  success: 0x16a34a,
+  warning: 0xf59e0b,
+  danger: 0xdc2626,
+  purple: 0x7c3aed,
+  cyan: 0x0891b2
+};
+
 function brl(value) {
   return Number(value || 0).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL"
   });
+}
+
+function yesNo(value) {
+  return value ? "Ativo" : "Desativado";
+}
+
+function shortText(value, fallback = "Nao configurado", size = 900) {
+  const text = String(value || fallback).trim();
+  return text.length > size ? `${text.slice(0, size - 3)}...` : text;
 }
 
 function normalizeId(value) {
@@ -425,12 +444,13 @@ function productStockText(product) {
 
 function planEmbed(plan) {
   return new EmbedBuilder()
-    .setColor(0x2f6fed)
-    .setTitle(`${plan.name} - ${money(plan)}`)
-    .setDescription(plan.description)
+    .setColor(theme.primary)
+    .setTitle(`Plano ${plan.name}`)
+    .setDescription(shortText(plan.description))
     .addFields(
+      { name: "Valor", value: money(plan), inline: true },
       {
-        name: "Inclui",
+        name: "O que inclui",
         value: plan.features.map((feature) => `• ${feature}`).join("\n")
       },
       {
@@ -442,21 +462,25 @@ function planEmbed(plan) {
 
 function storePanelEmbed(plans, shop) {
   const description = plans
-    .map((plan) => `**${plan.name}** - ${money(plan)}\n${plan.description}`)
+    .map((plan) => `**${plan.name}**\n${money(plan)} - ${plan.description}`)
     .join("\n\n");
 
   return new EmbedBuilder()
-    .setColor(0x111827)
-    .setTitle(shop.storeName)
-    .setDescription(description || "Nenhum plano cadastrado.")
-    .setFooter({ text: "Escolha um plano abaixo para abrir seu atendimento de compra." });
+    .setColor(theme.dark)
+    .setTitle(shop.storeName || "Loja de Bots")
+    .setDescription(`Escolha um plano e abra seu atendimento de compra.\n\n${description || "Nenhum plano cadastrado."}`)
+    .addFields(
+      { name: "Pagamento", value: shop.pixKey ? "Pix configurado" : "Pix pendente", inline: true },
+      { name: "Suporte", value: shop.supportUrl || "Via ticket", inline: true }
+    )
+    .setFooter({ text: "Selecione um plano no menu abaixo." });
 }
 
 function shopPanelEmbed(shop) {
   return new EmbedBuilder()
-    .setColor(0x2563eb)
-    .setTitle("Painel da loja")
-    .setDescription("Configure os dados principais da loja por botoes.")
+    .setColor(theme.primary)
+    .setTitle("Configuracao da loja")
+    .setDescription("Central de dados principais para vendas, suporte e logs.")
     .addFields(
       { name: "Nome", value: shop.storeName || "Nao configurado", inline: true },
       { name: "Pix", value: shop.pixKey ? `\`${shop.pixKey}\`` : "Nao configurado", inline: true },
@@ -500,17 +524,18 @@ function shopRows() {
 
 function aiPanelEmbed(settings) {
   return new EmbedBuilder()
-    .setColor(0x0891b2)
-    .setTitle("Painel IA")
-    .setDescription("Configure a IA de suporte para responder tickets ate alguem da equipe assumir.")
+    .setColor(theme.cyan)
+    .setTitle("Suporte com IA")
+    .setDescription("Treine a IA para responder perguntas iniciais antes da equipe assumir o atendimento.")
     .addFields(
-      { name: "Status", value: settings.ai.enabled ? "Ativa" : "Desativada", inline: true },
+      { name: "Status", value: yesNo(settings.ai.enabled), inline: true },
       { name: "Modelo", value: settings.ai.model || "gemini-1.5-flash", inline: true },
       { name: "Limite", value: `${settings.ai.maxReplies || 20} resposta(s)`, inline: true },
-      { name: "Loja", value: settings.ai.storeInfo || "Nao configurado" },
-      { name: "Produto", value: settings.ai.productInfo || "Nao configurado" },
-      { name: "Politica", value: settings.ai.policy || "Nao configurado" }
-    );
+      { name: "Loja", value: shortText(settings.ai.storeInfo) },
+      { name: "Produtos", value: shortText(settings.ai.productInfo) },
+      { name: "Politica", value: shortText(settings.ai.policy) }
+    )
+    .setFooter({ text: "A IA para quando um staff assume o ticket." });
 }
 
 function aiRows() {
@@ -534,9 +559,13 @@ function aiRows() {
 
 function supportPanelEmbed(shop) {
   return new EmbedBuilder()
-    .setColor(0x334155)
-    .setTitle("Atendimento")
-    .setDescription("Abra um ticket para falar com o suporte. A IA pode responder perguntas iniciais quando estiver ativa.")
+    .setColor(theme.dark)
+    .setTitle("Central de atendimento")
+    .setDescription("Abra um ticket para falar com o suporte. Se a IA estiver ativa, ela responde perguntas iniciais enquanto a equipe chega.")
+    .addFields(
+      { name: "Loja", value: shop.storeName || "Loja de Bots", inline: true },
+      { name: "Equipe", value: shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Staff", inline: true }
+    )
     .setFooter({ text: shop.storeName || "Loja de Bots" });
 }
 
@@ -572,9 +601,9 @@ function ticketRows(ticketId) {
 
 function configPanelEmbed(settings) {
   return new EmbedBuilder()
-    .setColor(0x0f172a)
-    .setTitle("Painel de configuracao")
-    .setDescription("Configure os sistemas extras da loja diretamente por botoes.")
+    .setColor(theme.dark)
+    .setTitle("Sistemas do servidor")
+    .setDescription("Configure entrada de membros, auto-cargo e protecao contra contas recentes.")
     .addFields(
       {
         name: "Boas-vindas",
@@ -668,22 +697,23 @@ function isStaff(member, shop = {}) {
 
 function orderEmbed(order, plan, shop) {
   return new EmbedBuilder()
-    .setColor(0xf59e0b)
-    .setTitle(`Pedido ${order.id}`)
-    .setDescription(`Plano escolhido: **${plan.name}**\nValor: **${money(plan)}**`)
+    .setColor(theme.warning)
+    .setTitle("Pedido de plano")
+    .setDescription(`Plano escolhido: **${plan.name}**`)
     .addFields(
+      { name: "Valor", value: money(plan), inline: true },
       { name: "Cliente", value: `<@${order.userId}>`, inline: true },
       { name: "Status", value: order.status, inline: true },
-      { name: "Pix", value: `\`${shop.pixKey || "Configure o Pix em /painel-loja"}\`` }
+      { name: "Chave Pix", value: `\`${shop.pixKey || "Configure o Pix em /painel-loja"}\`` }
     )
-    .setFooter({ text: "Depois de pagar, clique em Enviar comprovante." });
+    .setFooter({ text: `Pedido ${order.id}` });
 }
 
 function deliveryEmbed(order, plan, shop) {
   const supportLine = shop.supportUrl ? `\nSuporte: ${shop.supportUrl}` : "";
 
   return new EmbedBuilder()
-    .setColor(0x22c55e)
+    .setColor(theme.success)
     .setTitle("Pagamento aprovado")
     .setDescription(
       `Seu plano **${plan.name}** foi aprovado.\n\n${plan.delivery}${supportLine}`
@@ -773,7 +803,7 @@ async function createOrderTicket(interaction, plan) {
   });
 
   await log(guild, new EmbedBuilder()
-    .setColor(0x3b82f6)
+    .setColor(theme.primary)
     .setTitle("Novo pedido")
     .setDescription(`Pedido **${order.id}** criado por <@${order.userId}> no plano **${plan.name}**.`));
 
@@ -849,7 +879,7 @@ async function createProductTicket(interaction, product) {
   });
 
   await log(guild, new EmbedBuilder()
-    .setColor(0x3b82f6)
+    .setColor(theme.primary)
     .setTitle("Novo carrinho")
     .setDescription(`Carrinho **${order.id}** criado por <@${order.userId}> para **${product.name}**.`));
 
@@ -1045,8 +1075,9 @@ async function handleStatsCommand(interaction) {
   const revenue = approved.reduce((sum, order) => sum + Number(order.total || 0), 0);
 
   const embed = new EmbedBuilder()
-    .setColor(0x0ea5e9)
+    .setColor(theme.cyan)
     .setTitle("Estatisticas de vendas")
+    .setDescription("Resumo dos pedidos registrados neste servidor.")
     .addFields(
       { name: "Pedidos totais", value: String(orders.length), inline: true },
       { name: "Aprovados", value: String(approved.length), inline: true },
@@ -1065,10 +1096,12 @@ async function handleGeneratePix(interaction) {
   const payload = `PIX|LOJA=${shop.storeName || "Loja"}|CHAVE=${shop.pixKey || "configure-pix"}|VALOR=${value.toFixed(2)}|DESC=${description}`.slice(0, 950);
 
   const embed = new EmbedBuilder()
-    .setColor(0x22c55e)
+    .setColor(theme.success)
     .setTitle("Pix gerado")
-    .setDescription(`Valor: **${brl(value)}**\nDescricao: **${description}**`)
+    .setDescription(`Use os dados abaixo para receber este pagamento manual.`)
     .addFields(
+      { name: "Valor", value: brl(value), inline: true },
+      { name: "Descricao", value: description, inline: true },
       { name: "Chave Pix", value: `\`${shop.pixKey || "Configure em /painel-loja"}\`` },
       { name: "Copia e cola", value: `\`${payload}\`` }
     )
@@ -1264,14 +1297,14 @@ async function createSupportTicket(interaction) {
   await channel.send({
     content: `<@${interaction.user.id}> ${shop.staffRoleId ? `<@&${shop.staffRoleId}>` : ""}`,
     embeds: [new EmbedBuilder()
-      .setColor(0x2563eb)
+      .setColor(theme.primary)
       .setTitle("Ticket aberto")
-      .setDescription("Descreva sua duvida. Se a IA estiver ativa, ela pode responder ate alguem assumir.")],
+      .setDescription("Descreva sua duvida com detalhes. A IA responde automaticamente ate alguem da equipe assumir.")],
     components: ticketRows(ticket.id)
   });
 
   await log(interaction.guild, new EmbedBuilder()
-    .setColor(0x2563eb)
+    .setColor(theme.primary)
     .setTitle("Ticket de suporte aberto")
     .setDescription(`Ticket **${ticket.id}** aberto por <@${ticket.userId}>.`));
 
@@ -1798,7 +1831,7 @@ async function handleProofModal(interaction, orderId) {
   await saveOrder(order);
 
   const embed = new EmbedBuilder()
-    .setColor(0xeab308)
+    .setColor(theme.warning)
     .setTitle("Comprovante enviado")
     .addFields(
       { name: "Pedido", value: order.id, inline: true },
@@ -1862,7 +1895,7 @@ async function handleApprove(interaction, orderId) {
     }
 
     embed = new EmbedBuilder()
-      .setColor(0x22c55e)
+      .setColor(theme.success)
       .setTitle("Compra aprovada")
       .setDescription(`Produto **${product.name}** aprovado para <@${order.userId}>.${deliveryText}`)
       .addFields(
@@ -1893,7 +1926,7 @@ async function handleApprove(interaction, orderId) {
   await interaction.reply({ content: "Pedido aprovado.", ephemeral: true });
   await log(interaction.guild, embed);
   await publicSaleLog(interaction.guild, new EmbedBuilder()
-    .setColor(0x22c55e)
+    .setColor(theme.success)
     .setTitle("Nova compra aprovada")
     .setDescription(`<@${order.userId}> teve uma compra aprovada.`)
     .addFields({ name: "Valor", value: brl(order.total || 0), inline: true }));
@@ -1949,29 +1982,30 @@ function cartEmbed(order, product, shop) {
     : "";
 
   return new EmbedBuilder()
-    .setColor(0xf59e0b)
-    .setTitle(`Carrinho ${order.id}`)
-    .setDescription(`Produto: **${product.name}**\nValor: **${brl(order.total)}**${discountLine}`)
+    .setColor(theme.warning)
+    .setTitle("Carrinho de compra")
+    .setDescription(`Finalize o pagamento e envie o comprovante para a equipe aprovar.\n\n**${product.name}**${discountLine}`)
     .addFields(
+      { name: "Total", value: brl(order.total), inline: true },
       { name: "Cliente", value: `<@${order.userId}>`, inline: true },
       { name: "Status", value: order.status, inline: true },
-      { name: "Pix", value: `\`${shop.pixKey || "Configure o Pix em /painel-loja"}\`` },
+      { name: "Chave Pix", value: `\`${shop.pixKey || "Configure o Pix em /painel-loja"}\`` },
       { name: "Entrega", value: product.deliveryMode === "automatic" ? "Automatica apos aprovacao" : "Manual pela equipe" }
     )
-    .setFooter({ text: "Depois de pagar, clique em Enviar comprovante." });
+    .setFooter({ text: `Pedido ${order.id}` });
 }
 
 function productEmbed(product, shop) {
   return new EmbedBuilder()
-    .setColor(0x16a34a)
+    .setColor(theme.success)
     .setTitle(product.name)
-    .setDescription(product.description || "Produto sem descricao.")
+    .setDescription(shortText(product.description, "Produto sem descricao."))
     .addFields(
       { name: "Preco", value: brl(product.price), inline: true },
       { name: "Estoque", value: productStockText(product), inline: true },
-      { name: "Loja", value: shop.storeName || "Loja de Bots", inline: true }
+      { name: "Entrega", value: product.deliveryMode === "automatic" ? "Automatica" : "Manual", inline: true }
     )
-    .setFooter({ text: product.couponsEnabled ? "Cupons ativos neste produto." : "Cupons desativados neste produto." });
+    .setFooter({ text: `${shop.storeName || "Loja de Bots"} • ${product.couponsEnabled ? "Cupons aceitos" : "Sem cupons"}` });
 }
 
 function productBuyRows(product) {
@@ -1991,14 +2025,14 @@ function productBuyRows(product) {
 
 function panelEmbed(panel, products, shop) {
   const lines = products.map((product) => {
-    return `**${product.name}** - ${brl(product.price)}\n${product.description || "Sem descricao."}`;
+    return `**${product.name}**\n${brl(product.price)} - ${productStockText(product)}\n${product.description || "Sem descricao."}`;
   });
 
   return new EmbedBuilder()
-    .setColor(0x7c3aed)
+    .setColor(theme.purple)
     .setTitle(panel.name)
     .setDescription(`${panel.description || "Escolha um produto abaixo."}\n\n${lines.join("\n\n")}`)
-    .setFooter({ text: shop.storeName || "Loja de Bots" });
+    .setFooter({ text: `${shop.storeName || "Loja de Bots"} • selecione no menu abaixo` });
 }
 
 function panelSelect(panel, products) {
@@ -2147,7 +2181,7 @@ client.on(Events.MessageCreate, async (message) => {
     const reply = await generateAiReply(settings, message).catch(async (error) => {
       console.error("Erro na IA:", error);
       await log(message.guild, new EmbedBuilder()
-        .setColor(0xef4444)
+        .setColor(theme.danger)
         .setTitle("Erro na IA")
         .setDescription(error.message.slice(0, 1000)));
       return null;
@@ -2172,7 +2206,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
   if (settings.antiFake.enabled && accountAgeDays < settings.antiFake.minAccountAgeDays) {
     const embed = new EmbedBuilder()
-      .setColor(0xef4444)
+      .setColor(theme.danger)
       .setTitle("Anti-fake detectou uma conta recente")
       .setDescription(`${member.user.tag} entrou com conta de ${accountAgeDays.toFixed(1)} dia(s).`)
       .addFields({ name: "Acao", value: settings.antiFake.logOnly ? "Apenas log" : "Kick automatico" });
