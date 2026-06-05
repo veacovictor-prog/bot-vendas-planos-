@@ -835,60 +835,79 @@ function supportRows() {
 function botConfigEmbed(shop, settings) {
   return new EmbedBuilder()
     .setColor(theme.dark)
-    .setTitle(`${shop.storeName || "Loja de Bots"} | Painel`)
-    .setDescription("Configure sua loja, tickets, protecoes, sorteios, automacoes e apps pelo menu abaixo.")
+    .setTitle("Painel de Controle")
+    .setDescription(`Bom dia, aqui voce pode gerenciar sua aplicacao com liberdade.\n\n**${shop.storeName || "Loja de Bots"}**`)
     .addFields(
       { name: "Vendas", value: shop.salesEnabled === false ? "Desligadas" : "Ligadas", inline: true },
-      { name: "Pix", value: shop.pixKey ? "Configurado" : "Pendente", inline: true },
-      { name: "Protecao", value: settings.protection?.antiLink ? "Anti-link ativo" : "Basica", inline: true },
-      { name: "Cliente", value: shop.clientRoleId ? `<@&${shop.clientRoleId}>` : "Cargo nao configurado", inline: true },
-      { name: "Staff", value: shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Manage Server", inline: true },
-      { name: "Tickets", value: shop.ticketCategoryId ? `Categoria ${shop.ticketCategoryId}` : "Categoria nao configurada", inline: true }
+      { name: "Pix auto", value: autoPaymentProvider(shop) === "efi" ? "Efi Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Pendente", inline: true },
+      { name: "Protecao", value: settings.protection?.antiBot || settings.protection?.antiLink ? "Ativa" : "Basica", inline: true },
+      { name: "Tickets", value: shop.ticketCategoryId ? "Configurado" : "Pendente", inline: true },
+      { name: "Apps", value: "Clientes aprovados podem conectar bots", inline: true },
+      { name: "Automacoes", value: settings.welcome?.enabled || settings.autoRole?.enabled ? "Ativas" : "Disponiveis", inline: true }
     )
-    .setFooter({ text: "Painel central da loja" });
+    .setFooter({ text: "Use os botoes abaixo para navegar." });
 }
 
 function botConfigRows() {
   return [
     new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId("botcfg:section")
-        .setPlaceholder("Selecione uma secao para configurar")
-        .addOptions(
-          { label: "Gerenciar Produtos", description: "Crie, edite e publique produtos e paineis.", value: "products" },
-          { label: "Personalizar Loja", description: "Nome, Pix, pagamentos, logs e cargos.", value: "store" },
-          { label: "Gerenciar Tickets", description: "Painel de suporte, IA e categoria.", value: "tickets" },
-          { label: "Protecao do Servidor", description: "Anti-link, anti-fake e seguranca basica.", value: "protection" },
-          { label: "Sorteios", description: "Crie e encerre sorteios.", value: "giveaways" },
-          { label: "Apps de Clientes", description: "Bots comprados, token, nome, foto e status.", value: "apps" },
-          { label: "Automacoes", description: "Repost, boas-vindas e auto-cargo.", value: "automation" }
-        )
-    ),
-    new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("botcfg:store")
-        .setEmoji("🛒")
-        .setLabel("Loja")
+        .setEmoji("\uD83C\uDFEA")
+        .setLabel("Minha loja")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:tickets")
-        .setEmoji("🎫")
-        .setLabel("Tickets")
+        .setEmoji("\uD83C\uDFA7")
+        .setLabel("Ticket")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
-        .setCustomId("botcfg:protection")
-        .setEmoji("🛡️")
-        .setLabel("Protecao")
+        .setCustomId("botcfg:welcome")
+        .setEmoji("\uD83D\uDCDE")
+        .setLabel("Boas-Vindas")
+        .setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("botcfg:automation")
+        .setEmoji("\uD83D\uDD04")
+        .setLabel("Automacoes")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("botcfg:custom")
+        .setEmoji("\uD83C\uDFA8")
+        .setLabel("Customizar")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:apps")
-        .setEmoji("🤖")
-        .setLabel("Apps")
+        .setEmoji("\u2601\uFE0F")
+        .setLabel("zenCloud")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("botcfg:wallet")
+        .setEmoji("\uD83E\uDDFE")
+        .setLabel("Extrato")
+        .setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("botcfg:giveaways")
+        .setEmoji("\uD83C\uDF89")
+        .setLabel("Giveaway")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("botcfg:config")
+        .setEmoji("\u2699\uFE0F")
+        .setLabel("Configuracoes")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("botcfg:protection")
+        .setEmoji("\uD83D\uDEE1\uFE0F")
+        .setLabel("zenProtect")
         .setStyle(ButtonStyle.Secondary)
     )
   ];
 }
-
 function protectionPanelEmbed(settings, shop) {
   return new EmbedBuilder()
     .setColor(theme.warning)
@@ -950,6 +969,62 @@ function productsAdminEmbed(products, panels) {
     );
 }
 
+function storeOverviewEmbed(shop, products, orders) {
+  const approved = orders.filter((order) => order.status === "aprovado");
+  const received = approved.reduce((sum, order) => sum + orderAmount(order), 0);
+
+  return new EmbedBuilder()
+    .setColor(theme.dark)
+    .setTitle("Painel da Loja")
+    .setDescription("Escolha o que deseja fazer.")
+    .addFields(
+      { name: "Total criados", value: `${products.length} produto(s)`, inline: true },
+      { name: "Saldo", value: autoPaymentProvider(shop) === "efi" ? `${brl(received)} | Efi Bank` : shop.mercadoPagoAccessToken ? `${brl(received)} | Mercado Pago` : "Nao configurado", inline: true },
+      { name: "Moeda padrao", value: "BRL - pt_BR", inline: true },
+      { name: "Vendas", value: shop.salesEnabled ? "Ligadas" : "Desligadas", inline: true },
+      { name: "Pix auto", value: autoPaymentProvider(shop) === "efi" ? "Efi Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Pendente", inline: true },
+      { name: "Chave Pix", value: shop.pixKey ? "Configurada" : "Pendente", inline: true }
+    )
+    .setFooter({ text: shop.storeName || "Loja de Bots" });
+}
+
+function storeOverviewRows() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("botcfg:products")
+        .setEmoji("\u2795")
+        .setLabel("Criar produto")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("botcfg:products")
+        .setEmoji("\uD83D\uDD8A\uFE0F")
+        .setLabel("Produtos")
+        .setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("botcfg:store-more")
+        .setPlaceholder("Mais opcoes da loja...")
+        .addOptions(
+          { label: "Posicoes", description: "Cargos por valor gasto.", value: "positions" },
+          { label: "Sistema de Saldo", description: "Configure saldo interno da loja.", value: "wallet" },
+          { label: "Cupons", description: "Crie e gerencie cupons de desconto.", value: "coupons" },
+          { label: "Condecoracoes", description: "Metas e recompensas por compra.", value: "badges" },
+          { label: "Cargo Temporario", description: "Cargos temporarios vinculados a produtos.", value: "temporary-role" },
+          { label: "OAuth2", description: "Obrigatoriedade de auth para compras.", value: "oauth2" }
+        )
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("botcfg:home")
+        .setEmoji("\u2B05\uFE0F")
+        .setLabel("Voltar")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
 function automationPanelEmbed(settings) {
   return new EmbedBuilder()
     .setColor(theme.cyan)
@@ -995,12 +1070,17 @@ async function handleBotConfigSection(interaction, section) {
   }
 
   if (section === "store") {
-    await interaction.update({ embeds: [shopPanelEmbed(shop)], components: shopRows() });
+    await interaction.update({ embeds: [storeOverviewEmbed(shop, await getProducts(), await getOrders())], components: storeOverviewRows() });
     return;
   }
 
   if (section === "tickets") {
     await interaction.update({ embeds: [supportPanelEmbed(shop)], components: supportRows() });
+    return;
+  }
+
+  if (section === "welcome" || section === "config") {
+    await interaction.update({ embeds: [configPanelEmbed(settings)], components: configRows() });
     return;
   }
 
@@ -1014,7 +1094,7 @@ async function handleBotConfigSection(interaction, section) {
     return;
   }
 
-  if (section === "automation") {
+  if (section === "automation" || section === "custom") {
     await interaction.update({ embeds: [automationPanelEmbed(settings)], components: botConfigRows() });
     return;
   }
@@ -1031,10 +1111,68 @@ async function handleBotConfigSection(interaction, section) {
     return;
   }
 
+  if (section === "wallet") {
+    const orders = await getOrders();
+    const approved = orders.filter((order) => order.guildId === interaction.guildId && order.status === "aprovado");
+    const total = approved.reduce((sum, order) => sum + orderAmount(order), 0);
+    await interaction.update({
+      embeds: [new EmbedBuilder()
+        .setColor(theme.success)
+        .setTitle("Extrato")
+        .setDescription("Resumo rapido dos recebimentos da loja.")
+        .addFields(
+          { name: "Recebido", value: brl(total), inline: true },
+          { name: "Pedidos aprovados", value: String(approved.length), inline: true },
+          { name: "Provedor", value: autoPaymentProvider(shop) === "efi" ? "Efi Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Manual", inline: true }
+        )],
+      components: botConfigRows()
+    });
+    return;
+  }
+
   if (section === "apps") {
     const apps = await getApps();
     await interaction.update({ embeds: [appPanelEmbed(userApps(apps, interaction, shop), true)], components: appRows() });
   }
+}
+
+async function handleStoreMoreOption(interaction) {
+  const option = interaction.values[0];
+  const map = {
+    positions: {
+      title: "Posicoes",
+      description: "Cargos por valor gasto. Use cargo cliente em /painel-loja e crie cargos especiais manualmente por enquanto."
+    },
+    wallet: {
+      title: "Sistema de Saldo",
+      description: "Use Pix auto com Efi Bank ou Mercado Pago e acompanhe em /carteira."
+    },
+    coupons: {
+      title: "Cupons",
+      description: "Crie cupons com /criar cupom e aplique no carrinho pelo botao Aplicar cupom."
+    },
+    badges: {
+      title: "Condecoracoes",
+      description: "Metas de compra e condecoracoes podem ser acompanhadas pelo extrato e estatisticas."
+    },
+    "temporary-role": {
+      title: "Cargo Temporario",
+      description: "Vincule cargos usando o cargo cliente em /painel-loja. Tempo automatico pode ser adicionado depois por produto."
+    },
+    oauth2: {
+      title: "OAuth2",
+      description: "Use /apps para bots de clientes e o convite OAuth2 do seu bot no Discord Developer Portal."
+    }
+  };
+  const data = map[option] || map.wallet;
+
+  await interaction.update({
+    embeds: [new EmbedBuilder()
+      .setColor(theme.dark)
+      .setTitle(data.title)
+      .setDescription(data.description)],
+    components: storeOverviewRows()
+  });
 }
 
 function appRows() {
@@ -3815,6 +3953,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isStringSelectMenu() && interaction.customId === "botcfg:section") {
       await handleBotConfigSection(interaction, interaction.values[0]);
+      return;
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId === "botcfg:store-more") {
+      await handleStoreMoreOption(interaction);
       return;
     }
 
