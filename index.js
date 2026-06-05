@@ -116,30 +116,57 @@ const defaultPanels = [
   }
 ];
 
+const defaultEmojis = {
+  store: "🏪",
+  ticket: "🎧",
+  welcome: "📞",
+  automation: "🔄",
+  customize: "🎨",
+  cloud: "☁️",
+  receipt: "🧾",
+  giveaway: "🎉",
+  settings: "⚙️",
+  protect: "🛡️",
+  payment: "💳",
+  channels: "📁",
+  staff: "🛠️",
+  client: "👤",
+  sales: "🔌",
+  wallet: "💼",
+  add: "➕",
+  edit: "🖊️",
+  list: "📋",
+  delete: "🗑️",
+  back: "⬅️",
+  approve: "✅",
+  reject: "❌",
+  lock: "🔒",
+  coupon: "🏷️",
+  proof: "📎",
+  search: "🔎",
+  cart: "🛒",
+  stock: "📦"
+};
+
 const commands = [
   new SlashCommandBuilder()
     .setName("setup-loja")
-    .setDescription("Envia o painel principal da loja de bots.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription("Envia o painel principal da loja de bots."),
   new SlashCommandBuilder()
     .setName("painel-config")
-    .setDescription("Envia o painel de configuracao dos sistemas extras.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription("Envia o painel de configuracao dos sistemas extras."),
   new SlashCommandBuilder()
     .setName("botconfig")
-    .setDescription("Abre o painel central de configuracao estilo Promisse.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription("Abre o painel central de configuracao estilo Promisse."),
   new SlashCommandBuilder()
     .setName("painel-loja")
-    .setDescription("Envia o painel para configurar a loja, Pix, logs e tickets.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription("Envia o painel para configurar a loja, Pix, logs e tickets."),
   new SlashCommandBuilder()
     .setName("planos")
     .setDescription("Mostra os planos de bots disponiveis."),
   new SlashCommandBuilder()
     .setName("criar")
     .setDescription("Cria produto, painel ou cupom.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((subcommand) => subcommand
       .setName("produto")
       .setDescription("Cria ou atualiza um produto.")
@@ -181,7 +208,6 @@ const commands = [
   new SlashCommandBuilder()
     .setName("set")
     .setDescription("Publica produto ou painel no canal atual.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((subcommand) => subcommand
       .setName("produto")
       .setDescription("Publica um produto.")
@@ -192,8 +218,7 @@ const commands = [
       .addStringOption((option) => option.setName("id").setDescription("ID do painel.").setRequired(true))),
   new SlashCommandBuilder()
     .setName("estatistica")
-    .setDescription("Mostra estatisticas de vendas.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription("Mostra estatisticas de vendas."),
   new SlashCommandBuilder()
     .setName("gerar-pix")
     .setDescription("Gera uma cobranca Pix manual.")
@@ -201,20 +226,16 @@ const commands = [
     .addStringOption((option) => option.setName("descricao").setDescription("Descricao da cobranca.").setRequired(false)),
   new SlashCommandBuilder()
     .setName("carteira")
-    .setDescription("Mostra os recebimentos Pix da carteira integrada.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription("Mostra os recebimentos Pix da carteira integrada."),
   new SlashCommandBuilder()
     .setName("painel-ia")
-    .setDescription("Configura o suporte com IA.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription("Configura o suporte com IA."),
   new SlashCommandBuilder()
     .setName("ticket-painel")
-    .setDescription("Publica o painel de suporte com ticket e IA.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription("Publica o painel de suporte com ticket e IA."),
   new SlashCommandBuilder()
     .setName("blacklist")
     .setDescription("Gerencia usuarios bloqueados da loja.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((subcommand) => subcommand
       .setName("add")
       .setDescription("Bloqueia um usuario de comprar e abrir ticket.")
@@ -230,13 +251,11 @@ const commands = [
   new SlashCommandBuilder()
     .setName("termos")
     .setDescription("Configura os termos de compra.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption((option) => option.setName("texto").setDescription("Texto dos termos.").setRequired(true))
     .addBooleanOption((option) => option.setName("obrigatorio").setDescription("Exigir aceite antes da compra.").setRequired(false)),
   new SlashCommandBuilder()
     .setName("sorteio")
     .setDescription("Cria ou encerra sorteios.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((subcommand) => subcommand
       .setName("criar")
       .setDescription("Cria um sorteio com botao de participar.")
@@ -251,7 +270,6 @@ const commands = [
   new SlashCommandBuilder()
     .setName("repost")
     .setDescription("Configura repost automatico de produto ou painel.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption((option) => option
       .setName("tipo")
       .setDescription("Tipo de repost.")
@@ -270,7 +288,6 @@ const commands = [
   new SlashCommandBuilder()
     .setName("protecao")
     .setDescription("Configura protecoes basicas do servidor.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addBooleanOption((option) => option.setName("anti-link").setDescription("Bloquear links de usuarios sem staff.").setRequired(true)),
   new SlashCommandBuilder()
     .setName("apps")
@@ -471,6 +488,7 @@ function defaultGuildSettings() {
       efiCertificateBase64: "",
       efiPixKey: "",
       efiSandbox: false,
+      emojis: defaultEmojis,
       termsRequired: false,
       termsText: "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
       blacklist: []
@@ -548,6 +566,7 @@ async function getShopSettings(guildId) {
     efiCertificateBase64: settings.shop?.efiCertificateBase64 || process.env.EFI_CERTIFICATE_BASE64 || "",
     efiPixKey: settings.shop?.efiPixKey || process.env.EFI_PIX_KEY || settings.shop?.pixKey || config.pixKey || "",
     efiSandbox: String(settings.shop?.efiSandbox ?? process.env.EFI_SANDBOX ?? "false").toLowerCase() === "true",
+    emojis: { ...defaultEmojis, ...(settings.shop?.emojis || {}) },
     termsRequired: Boolean(settings.shop?.termsRequired),
     termsText: settings.shop?.termsText || "Ao comprar, voce confirma que leu a descricao do produto e entende que produtos digitais podem nao ter reembolso.",
     blacklist: settings.shop?.blacklist || []
@@ -612,6 +631,29 @@ function paymentMethodsText(shop) {
     methods.wallet ? "Carteira" : null
   ].filter(Boolean);
   return active.length ? active.join(", ") : "Nenhum ativo";
+}
+
+function parseButtonEmoji(value) {
+  const emoji = String(value || "").trim();
+  const match = emoji.match(/^<(?<animated>a?):(?<name>[A-Za-z0-9_]+):(?<id>\d+)>$/);
+  if (match?.groups) {
+    return {
+      id: match.groups.id,
+      name: match.groups.name,
+      animated: match.groups.animated === "a"
+    };
+  }
+  return emoji || "•";
+}
+
+function buttonEmoji(shop, key) {
+  return parseButtonEmoji(shop?.emojis?.[key] || defaultEmojis[key] || "•");
+}
+
+function emojisPreview(shop) {
+  return Object.entries({ ...defaultEmojis, ...(shop.emojis || {}) })
+    .map(([key, value]) => `${key}=${value}`)
+    .join("\n");
 }
 
 function autoPaymentProvider(shop) {
@@ -724,47 +766,52 @@ function shopPanelEmbed(shop) {
     );
 }
 
-function shopRows() {
+function shopRows(shop = {}) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("shopcfg:identity")
-        .setEmoji("🏪")
+        .setEmoji(buttonEmoji(shop, "store"))
         .setLabel("Loja")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("shopcfg:payment")
-        .setEmoji("💳")
+        .setEmoji(buttonEmoji(shop, "payment"))
         .setLabel("Pagamentos")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("shopcfg:channels")
-        .setEmoji("📁")
+        .setEmoji(buttonEmoji(shop, "channels"))
         .setLabel("Canais")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("shopcfg:staff")
-        .setEmoji("🛠️")
+        .setEmoji(buttonEmoji(shop, "staff"))
         .setLabel("Staff")
         .setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("shopcfg:clientrole")
-        .setEmoji("👤")
+        .setEmoji(buttonEmoji(shop, "client"))
         .setLabel("Cargo cliente")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("shopcfg:sales")
-        .setEmoji("🔌")
+        .setEmoji(buttonEmoji(shop, "sales"))
         .setLabel("Vendas")
         .setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("shopcfg:wallet")
-        .setEmoji("💼")
+        .setEmoji(buttonEmoji(shop, "wallet"))
         .setLabel("Carteira MP")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("shopcfg:emojis")
+        .setEmoji(buttonEmoji(shop, "customize"))
+        .setLabel("Emojis")
         .setStyle(ButtonStyle.Secondary)
     )
   ];
@@ -848,61 +895,61 @@ function botConfigEmbed(shop, settings) {
     .setFooter({ text: "Use os botoes abaixo para navegar." });
 }
 
-function botConfigRows() {
+function botConfigRows(shop = {}) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("botcfg:store")
-        .setEmoji("\uD83C\uDFEA")
+        .setEmoji(buttonEmoji(shop, "store"))
         .setLabel("Minha loja")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:tickets")
-        .setEmoji("\uD83C\uDFA7")
+        .setEmoji(buttonEmoji(shop, "ticket"))
         .setLabel("Ticket")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:welcome")
-        .setEmoji("\uD83D\uDCDE")
+        .setEmoji(buttonEmoji(shop, "welcome"))
         .setLabel("Boas-Vindas")
         .setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("botcfg:automation")
-        .setEmoji("\uD83D\uDD04")
+        .setEmoji(buttonEmoji(shop, "automation"))
         .setLabel("Automacoes")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:custom")
-        .setEmoji("\uD83C\uDFA8")
+        .setEmoji(buttonEmoji(shop, "customize"))
         .setLabel("Customizar")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:apps")
-        .setEmoji("\u2601\uFE0F")
+        .setEmoji(buttonEmoji(shop, "cloud"))
         .setLabel("zenCloud")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:wallet")
-        .setEmoji("\uD83E\uDDFE")
+        .setEmoji(buttonEmoji(shop, "receipt"))
         .setLabel("Extrato")
         .setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("botcfg:giveaways")
-        .setEmoji("\uD83C\uDF89")
+        .setEmoji(buttonEmoji(shop, "giveaway"))
         .setLabel("Giveaway")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:config")
-        .setEmoji("\u2699\uFE0F")
+        .setEmoji(buttonEmoji(shop, "settings"))
         .setLabel("Configuracoes")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:protection")
-        .setEmoji("\uD83D\uDEE1\uFE0F")
+        .setEmoji(buttonEmoji(shop, "protect"))
         .setLabel("zenProtect")
         .setStyle(ButtonStyle.Secondary)
     )
@@ -988,17 +1035,17 @@ function storeOverviewEmbed(shop, products, orders) {
     .setFooter({ text: shop.storeName || "Loja de Bots" });
 }
 
-function storeOverviewRows() {
+function storeOverviewRows(shop = {}) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("botcfg:products")
-        .setEmoji("\u2795")
+        .setEmoji(buttonEmoji(shop, "add"))
         .setLabel("Criar produto")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("botcfg:products")
-        .setEmoji("\uD83D\uDD8A\uFE0F")
+        .setEmoji(buttonEmoji(shop, "edit"))
         .setLabel("Produtos")
         .setStyle(ButtonStyle.Secondary)
     ),
@@ -1018,7 +1065,7 @@ function storeOverviewRows() {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("botcfg:home")
-        .setEmoji("\u2B05\uFE0F")
+        .setEmoji(buttonEmoji(shop, "back"))
         .setLabel("Voltar")
         .setStyle(ButtonStyle.Secondary)
     )
@@ -1048,7 +1095,7 @@ async function sendBotConfigPanel(interaction, edit = false) {
 
   const payload = {
     embeds: [botConfigEmbed(shop, settings)],
-    components: botConfigRows(),
+    components: botConfigRows(shop),
     ephemeral: true
   };
 
@@ -1070,7 +1117,7 @@ async function handleBotConfigSection(interaction, section) {
   }
 
   if (section === "store") {
-    await interaction.update({ embeds: [storeOverviewEmbed(shop, await getProducts(), await getOrders())], components: storeOverviewRows() });
+    await interaction.update({ embeds: [storeOverviewEmbed(shop, await getProducts(), await getOrders())], components: storeOverviewRows(shop) });
     return;
   }
 
@@ -1090,12 +1137,12 @@ async function handleBotConfigSection(interaction, section) {
   }
 
   if (section === "products") {
-    await interaction.update({ embeds: [productsAdminEmbed(await getProducts(), await getPanels())], components: botConfigRows() });
+    await interaction.update({ embeds: [productsAdminEmbed(await getProducts(), await getPanels())], components: botConfigRows(shop) });
     return;
   }
 
   if (section === "automation" || section === "custom") {
-    await interaction.update({ embeds: [automationPanelEmbed(settings)], components: botConfigRows() });
+    await interaction.update({ embeds: [automationPanelEmbed(settings)], components: botConfigRows(shop) });
     return;
   }
 
@@ -1106,7 +1153,7 @@ async function handleBotConfigSection(interaction, section) {
         .setTitle("Sorteios")
         .setDescription("Crie sorteios reais com botao de participar e encerramento automatico.")
         .addFields({ name: "Comandos", value: "`/sorteio criar`, `/sorteio encerrar`" })],
-      components: botConfigRows()
+      components: botConfigRows(shop)
     });
     return;
   }
@@ -1125,14 +1172,14 @@ async function handleBotConfigSection(interaction, section) {
           { name: "Pedidos aprovados", value: String(approved.length), inline: true },
           { name: "Provedor", value: autoPaymentProvider(shop) === "efi" ? "Efi Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Manual", inline: true }
         )],
-      components: botConfigRows()
+      components: botConfigRows(shop)
     });
     return;
   }
 
   if (section === "apps") {
     const apps = await getApps();
-    await interaction.update({ embeds: [appPanelEmbed(userApps(apps, interaction, shop), true)], components: appRows() });
+    await interaction.update({ embeds: [appPanelEmbed(userApps(apps, interaction, shop), true)], components: appRows(shop) });
   }
 }
 
@@ -1171,31 +1218,31 @@ async function handleStoreMoreOption(interaction) {
       .setColor(theme.dark)
       .setTitle(data.title)
       .setDescription(data.description)],
-    components: storeOverviewRows()
+    components: storeOverviewRows(await getShopSettings(interaction.guildId))
   });
 }
 
-function appRows() {
+function appRows(shop = {}) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("apps:add")
-        .setEmoji("➕")
+        .setEmoji(buttonEmoji(shop, "add"))
         .setLabel("Conectar bot")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("apps:config")
-        .setEmoji("🛠️")
+        .setEmoji(buttonEmoji(shop, "staff"))
         .setLabel("Configurar")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("apps:list")
-        .setEmoji("📋")
+        .setEmoji(buttonEmoji(shop, "list"))
         .setLabel("Meus bots")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("apps:remove")
-        .setEmoji("🗑️")
+        .setEmoji(buttonEmoji(shop, "delete"))
         .setLabel("Remover")
         .setStyle(ButtonStyle.Secondary)
     )
@@ -1348,7 +1395,7 @@ async function sendAppsPanel(interaction) {
 
   await interaction.reply({
     embeds: [appPanelEmbed(userApps(apps, interaction, shop), access)],
-    components: access ? appRows() : [],
+    components: access ? appRows(shop) : [],
     ephemeral: true
   });
 }
@@ -1630,44 +1677,44 @@ function planSelect(plans) {
   );
 }
 
-function paymentRows(orderId) {
+function paymentRows(orderId, shop = {}) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`order:proof:${orderId}`)
-        .setEmoji("📎")
+        .setEmoji(buttonEmoji(shop, "proof"))
         .setLabel("Enviar comprovante")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`order:coupon:${orderId}`)
-        .setEmoji("🏷️")
+        .setEmoji(buttonEmoji(shop, "coupon"))
         .setLabel("Aplicar cupom")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`order:close:${orderId}`)
-        .setEmoji("🔒")
+        .setEmoji(buttonEmoji(shop, "lock"))
         .setLabel("Fechar ticket")
         .setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`order:walletpix:${orderId}`)
-        .setEmoji("💼")
+        .setEmoji(buttonEmoji(shop, "wallet"))
         .setLabel("Pix auto")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`order:checkpix:${orderId}`)
-        .setEmoji("🔎")
+        .setEmoji(buttonEmoji(shop, "search"))
         .setLabel("Verificar Pix")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`order:approve:${orderId}`)
-        .setEmoji("✅")
+        .setEmoji(buttonEmoji(shop, "approve"))
         .setLabel("Aprovar")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`order:reject:${orderId}`)
-        .setEmoji("❌")
+        .setEmoji(buttonEmoji(shop, "reject"))
         .setLabel("Reprovar")
         .setStyle(ButtonStyle.Secondary)
     )
@@ -1890,7 +1937,7 @@ async function createOrderTicket(interaction, plan) {
   await channel.send({
     content: `<@${interaction.user.id}> ${shop.staffRoleId ? `<@&${shop.staffRoleId}>` : ""}`,
     embeds: [orderEmbed(order, plan, shop)],
-    components: paymentRows(order.id)
+    components: paymentRows(order.id, shop)
   });
 
   await log(guild, new EmbedBuilder()
@@ -1997,7 +2044,7 @@ async function createProductTicket(interaction, product, field = null, acceptedT
   await channel.send({
     content: `<@${interaction.user.id}> ${shop.staffRoleId ? `<@&${shop.staffRoleId}>` : ""}`,
     embeds: [cartEmbed(order, item, shop)],
-    components: paymentRows(order.id)
+    components: paymentRows(order.id, shop)
   });
 
   await log(guild, new EmbedBuilder()
@@ -2050,7 +2097,7 @@ async function sendShopPanel(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   await interaction.channel.send({
     embeds: [shopPanelEmbed(shop)],
-    components: shopRows()
+    components: shopRows(shop)
   });
   await interaction.reply({ content: "Painel da loja enviado.", ephemeral: true });
 }
@@ -2191,7 +2238,7 @@ async function handleSetCommand(interaction) {
 
     await interaction.channel.send({
       embeds: [productEmbed(product, shop)],
-      components: productBuyRows(product)
+      components: productBuyRows(product, shop)
     });
     await interaction.reply({ content: "Produto publicado.", ephemeral: true });
     return;
@@ -2729,6 +2776,19 @@ async function handleShopButton(interaction, action) {
     );
   }
 
+  if (action === "emojis") {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("emojis")
+          .setLabel("Emojis key=emoji, um por linha")
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(emojisPreview(shop).slice(0, 3800))
+          .setRequired(false)
+      )
+    );
+  }
+
   if (action === "channels") {
     modal.addComponents(
       new ActionRowBuilder().addComponents(
@@ -2838,6 +2898,20 @@ async function handleShopModal(interaction, action) {
     settings.shop.paymentMethods.efiBank = Boolean(settings.shop.efiClientId && settings.shop.efiClientSecret && settings.shop.efiCertificateBase64);
   }
 
+  if (action === "emojis") {
+    const lines = interaction.fields.getTextInputValue("emojis").split(/\r?\n/);
+    const emojis = { ...(settings.shop.emojis || {}) };
+    for (const line of lines) {
+      const clean = line.trim();
+      if (!clean || clean.startsWith("#") || !clean.includes("=")) continue;
+      const [key, ...valueParts] = clean.split("=");
+      const normalizedKey = key.trim();
+      const value = valueParts.join("=").trim();
+      if (defaultEmojis[normalizedKey] && value) emojis[normalizedKey] = value;
+    }
+    settings.shop.emojis = emojis;
+  }
+
   if (action === "channels") {
     settings.shop.logChannelId = interaction.fields.getTextInputValue("logChannelId").trim();
     settings.shop.publicLogChannelId = interaction.fields.getTextInputValue("publicLogChannelId").trim();
@@ -2912,7 +2986,7 @@ async function publishProduct(channel, productId, guildId) {
   const products = await getProducts();
   const product = products.find((item) => item.id === normalizeId(productId));
   if (!product) return false;
-  await channel.send({ embeds: [productEmbed(product, shop)], components: productBuyRows(product) });
+  await channel.send({ embeds: [productEmbed(product, shop)], components: productBuyRows(product, shop) });
   return true;
 }
 
@@ -3508,7 +3582,7 @@ async function handleCouponModal(interaction, orderId) {
 
   await interaction.channel.send({
     embeds: [cartEmbed(order, item, await getShopSettings(interaction.guildId))],
-    components: paymentRows(order.id)
+    components: paymentRows(order.id, await getShopSettings(interaction.guildId))
   });
 }
 
@@ -3818,17 +3892,17 @@ function productEmbed(product, shop) {
     .setFooter({ text: `${shop.storeName || "Loja de Bots"} • ${product.couponsEnabled ? "Cupons aceitos" : "Sem cupons"}` });
 }
 
-function productBuyRows(product) {
+function productBuyRows(product, shop = {}) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`product:buy:${product.id}`)
-        .setEmoji("🛒")
+        .setEmoji(buttonEmoji(shop, "cart"))
         .setLabel("Comprar agora")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`product:stock:${product.id}`)
-        .setEmoji("📦")
+        .setEmoji(buttonEmoji(shop, "stock"))
         .setLabel("Ver estoque")
         .setStyle(ButtonStyle.Secondary)
     )
