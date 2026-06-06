@@ -197,6 +197,10 @@ const commands = [
     .setName("painel-ia")
     .setDescription("Configura o suporte com IA."),
   new SlashCommandBuilder()
+    .setName("ia-teste")
+    .setDescription("Testa se a IA esta ligada e respondendo.")
+    .addStringOption((option) => option.setName("pergunta").setDescription("Pergunta para testar a IA.").setRequired(true)),
+  new SlashCommandBuilder()
     .setName("ticket-painel")
     .setDescription("Publica o painel de suporte com ticket e IA."),
   new SlashCommandBuilder()
@@ -549,6 +553,11 @@ async function saveOrder(order) {
 async function findOrder(orderId) {
   const orders = await getOrders();
   return orders.find((order) => order.id === orderId);
+}
+
+async function findOrderByChannel(channelId) {
+  const orders = await getOrders();
+  return orders.find((order) => order.channelId === channelId && !["fechado", "aprovado", "reprovado"].includes(order.status));
 }
 
 const theme = {
@@ -2165,6 +2174,28 @@ async function sendAiPanel(interaction) {
   await interaction.reply({ content: "Painel IA enviado.", ephemeral: true });
 }
 
+async function handleAiTestCommand(interaction) {
+  const settings = await getGuildSettings(interaction.guildId);
+  const question = interaction.options.getString("pergunta");
+
+  if (!settings.ai.enabled) {
+    await interaction.reply({ content: "A IA esta desligada. Use `/painel-ia` > API e coloque `sim` em ativar.", ephemeral: true });
+    return;
+  }
+
+  if (!settings.ai.apiKey) {
+    await interaction.reply({ content: "A chave Gemini API nao foi configurada. Use `/painel-ia` > API.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const reply = await generateAiReply(settings, { content: question }, question).catch((error) => {
+    console.error("Erro no teste de IA:", error);
+    return `Erro ao chamar Gemini: ${error.message}`;
+  });
+  await interaction.editReply(reply ? reply.slice(0, 1900) : "A IA nao retornou texto. Confira o modelo e a chave API.");
+}
+
 async function sendTicketPanel(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   await interaction.channel.send({ embeds: [supportPanelEmbed(shop)], components: supportRows() });
@@ -2413,7 +2444,7 @@ async function handleTicketButton(interaction, action, ticketId) {
   }
 }
 
-async function generateAiReply(settings, message) {
+async function generateAiReply(settings, message, question = null) {
   if (!settings.ai.enabled || !settings.ai.apiKey) return null;
 
   const faq = (settings.ai.faq || []).map((item) => `Pergunta: ${item.q}\nResposta: ${item.a}`).join("\n\n");
@@ -2424,7 +2455,7 @@ async function generateAiReply(settings, message) {
     `Produtos: ${settings.ai.productInfo || "Nao informado"}`,
     `Politica: ${settings.ai.policy || "Nao informado"}`,
     faq ? `FAQ:\n${faq}` : "",
-    `Cliente perguntou: ${message.content}`
+    `Cliente perguntou: ${question || message.content}`
   ].filter(Boolean).join("\n\n");
 
   const model = settings.ai.model || "gemini-1.5-flash";
@@ -3878,6 +3909,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "carteira") await handleWalletStatsCommand(interaction);
       if (interaction.commandName === "config-pagamento") await handlePaymentConfigCommand(interaction);
       if (interaction.commandName === "painel-ia") await sendAiPanel(interaction);
+      if (interaction.commandName === "ia-teste") await handleAiTestCommand(interaction);
       if (interaction.commandName === "ticket-painel") await sendTicketPanel(interaction);
       if (interaction.commandName === "blacklist") await handleBlacklistCommand(interaction);
       if (interaction.commandName === "termos") await handleTermsCommand(interaction);
@@ -4011,9 +4043,11 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     const ticket = await findTicketByChannel(message.channel.id);
-    if (!ticket || ticket.claimedBy || ticket.userId !== message.author.id) return;
+    const order = ticket ? null : await findOrderByChannel(message.channel.id);
+    const conversation = ticket || order;
+    if (!conversation || conversation.claimedBy || conversation.userId !== message.author.id) return;
 
-    if (!settings.ai.enabled || ticket.aiReplies >= (settings.ai.maxReplies || 20)) return;
+    if (!settings.ai.enabled || Number(conversation.aiReplies || 0) >= (settings.ai.maxReplies || 20)) return;
 
     await message.channel.sendTyping().catch(() => null);
     const reply = await generateAiReply(settings, message).catch(async (error) => {
@@ -4027,9 +4061,10 @@ client.on(Events.MessageCreate, async (message) => {
 
     if (!reply) return;
 
-    ticket.aiReplies = Number(ticket.aiReplies || 0) + 1;
-    ticket.updatedAt = new Date().toISOString();
-    await saveTicket(ticket);
+    conversation.aiReplies = Number(conversation.aiReplies || 0) + 1;
+    conversation.updatedAt = new Date().toISOString();
+    if (ticket) await saveTicket(conversation);
+    else await saveOrder(conversation);
 
     await message.reply(reply.slice(0, 1900));
   } catch (error) {
