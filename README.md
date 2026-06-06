@@ -19,7 +19,7 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 - `/config-pagamento`: configura Pix, Efi Bank e Mercado Pago por modal no Discord.
 - `/carteira`: mostra recebimentos da carteira integrada.
 - `/painel-ia`: configura IA de atendimento com Gemini.
-- `/ia-teste`: testa a chave/modelo da IA sem abrir ticket.
+- `/ia-teste` ou `/teste-ia`: testa a chave/modelo da IA sem abrir ticket.
 - `/ticket-painel`: publica painel de suporte.
 - `/blacklist`: bloqueia/libera usuarios da loja.
 - `/termos`: configura aceite obrigatorio de termos.
@@ -323,6 +323,7 @@ Teste a chave antes de usar:
 
 ```txt
 /ia-teste pergunta:oi, quais produtos voces vendem?
+/teste-ia pergunta:oi, quais produtos voces vendem?
 ```
 
 Quando o cliente abrir ticket ou carrinho e mandar mensagem, a IA responde enquanto nenhum staff tiver clicado em `Assumir` no ticket de suporte. Em carrinho de compra ela responde ate o pedido ser aprovado, reprovado ou fechado.

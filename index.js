@@ -201,6 +201,10 @@ const commands = [
     .setDescription("Testa se a IA esta ligada e respondendo.")
     .addStringOption((option) => option.setName("pergunta").setDescription("Pergunta para testar a IA.").setRequired(true)),
   new SlashCommandBuilder()
+    .setName("teste-ia")
+    .setDescription("Alias para testar se a IA esta ligada e respondendo.")
+    .addStringOption((option) => option.setName("pergunta").setDescription("Pergunta para testar a IA.").setRequired(true)),
+  new SlashCommandBuilder()
     .setName("ticket-painel")
     .setDescription("Publica o painel de suporte com ticket e IA."),
   new SlashCommandBuilder()
@@ -3882,6 +3886,7 @@ async function registerCommandsForGuild(guild) {
 
   await rest.put(Routes.applicationGuildCommands(applicationId, guild.id), { body: commands });
   console.log(`Slash commands registrados em ${guild.name} (${guild.id}).`);
+  console.log(`Comandos ativos: ${commands.map((command) => command.name).join(", ")}`);
 }
 
 client.once(Events.ClientReady, async () => {
@@ -3927,7 +3932,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "carteira") await handleWalletStatsCommand(interaction);
       if (interaction.commandName === "config-pagamento") await handlePaymentConfigCommand(interaction);
       if (interaction.commandName === "painel-ia") await sendAiPanel(interaction);
-      if (interaction.commandName === "ia-teste") await handleAiTestCommand(interaction);
+      if (["ia-teste", "teste-ia"].includes(interaction.commandName)) await handleAiTestCommand(interaction);
       if (interaction.commandName === "ticket-painel") await sendTicketPanel(interaction);
       if (interaction.commandName === "blacklist") await handleBlacklistCommand(interaction);
       if (interaction.commandName === "termos") await handleTermsCommand(interaction);
