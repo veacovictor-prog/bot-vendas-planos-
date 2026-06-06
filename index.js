@@ -2310,7 +2310,7 @@ async function handleAiModal(interaction, action) {
   if (action === "api") {
     settings.ai.enabled = yes(interaction.fields.getTextInputValue("enabled"));
     settings.ai.apiKey = interaction.fields.getTextInputValue("apiKey").trim();
-    settings.ai.model = interaction.fields.getTextInputValue("model").trim() || "gemini-2.0-flash";
+    settings.ai.model = normalizeGeminiModel(interaction.fields.getTextInputValue("model"));
   }
 
   if (action === "training") {
@@ -2445,8 +2445,8 @@ async function handleTicketButton(interaction, action, ticketId) {
 }
 
 function normalizeGeminiModel(model) {
-  const clean = String(model || "").trim();
-  if (!clean || clean === "gemini-1.5-flash") return "gemini-2.0-flash";
+  const clean = String(model || "").trim().replace(/^models\//i, "");
+  if (!clean || clean.includes("gemini-1.5-flash")) return "gemini-2.0-flash";
   return clean;
 }
 
