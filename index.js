@@ -23,7 +23,6 @@ const http = require("http");
 const path = require("path");
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
-const PLANS_FILE = path.join(DATA_DIR, "plans.json");
 const ORDERS_FILE = path.join(DATA_DIR, "orders.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const PRODUCTS_FILE = path.join(DATA_DIR, "products.json");
@@ -46,51 +45,6 @@ const config = {
   storeName: process.env.STORE_NAME || "Loja de Bots",
   supportUrl: process.env.SUPPORT_URL || ""
 };
-
-const defaultPlans = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: "19,90",
-    period: "mensal",
-    description: "Bot simples com comandos basicos, status online e suporte inicial.",
-    features: [
-      "1 bot Discord",
-      "Instalacao manual",
-      "Suporte basico",
-      "Atualizacoes simples"
-    ],
-    delivery: "A equipe envia o bot e orienta a instalacao apos confirmar o pagamento."
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "39,90",
-    period: "mensal",
-    description: "Bot de vendas, ticket ou moderacao com personalizacao da sua marca.",
-    features: [
-      "1 bot personalizado",
-      "Comandos slash",
-      "Painel dentro do Discord",
-      "Suporte prioritario"
-    ],
-    delivery: "A equipe entrega o bot configurado para o servidor do cliente."
-  },
-  {
-    id: "ultimate",
-    name: "Ultimate",
-    price: "79,90",
-    period: "mensal",
-    description: "Plano completo para lojas que querem vender 24/7 com automacoes.",
-    features: [
-      "Bot completo de vendas",
-      "Sistema de tickets",
-      "Logs e painel admin",
-      "Customizacao completa"
-    ],
-    delivery: "A equipe entrega o bot completo e ajuda na primeira configuracao."
-  }
-];
 
 const defaultProducts = [
   {
@@ -151,7 +105,7 @@ const defaultEmojis = {
 const commands = [
   new SlashCommandBuilder()
     .setName("setup-loja")
-    .setDescription("Envia o painel principal da loja de bots."),
+    .setDescription("Envia o painel principal de produtos da loja."),
   new SlashCommandBuilder()
     .setName("painel-config")
     .setDescription("Envia o painel de configuracao dos sistemas extras."),
@@ -161,9 +115,6 @@ const commands = [
   new SlashCommandBuilder()
     .setName("painel-loja")
     .setDescription("Envia o painel para configurar a loja, Pix, logs e tickets."),
-  new SlashCommandBuilder()
-    .setName("planos")
-    .setDescription("Mostra os planos de bots disponiveis."),
   new SlashCommandBuilder()
     .setName("criar")
     .setDescription("Cria produto, painel ou cupom.")
@@ -291,7 +242,7 @@ const commands = [
     .addBooleanOption((option) => option.setName("anti-link").setDescription("Bloquear links de usuarios sem staff.").setRequired(true)),
   new SlashCommandBuilder()
     .setName("apps")
-    .setDescription("Gerencia o bot adquirido no plano.")
+    .setDescription("Gerencia o bot adquirido na loja.")
 ].map((command) => command.toJSON());
 
 const client = new Client({
@@ -341,13 +292,6 @@ async function readJson(file, fallback) {
 async function writeJson(file, value) {
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-async function getPlans() {
-  const plans = await readJson(PLANS_FILE, null);
-  if (plans) return plans;
-  await writeJson(PLANS_FILE, defaultPlans);
-  return defaultPlans;
 }
 
 async function getProducts() {
@@ -592,10 +536,6 @@ async function findOrder(orderId) {
   return orders.find((order) => order.id === orderId);
 }
 
-function money(plan) {
-  return `R$ ${plan.price}/${plan.period}`;
-}
-
 const theme = {
   dark: 0x0f172a,
   primary: 0x2563eb,
@@ -709,40 +649,6 @@ function getBuyableItems(product) {
 
 function isBlacklisted(shop, userId) {
   return (shop.blacklist || []).some((entry) => entry.userId === userId);
-}
-
-function planEmbed(plan) {
-  return new EmbedBuilder()
-    .setColor(theme.primary)
-    .setTitle(`Plano ${plan.name}`)
-    .setDescription(shortText(plan.description))
-    .addFields(
-      { name: "Valor", value: money(plan), inline: true },
-      {
-        name: "O que inclui",
-        value: plan.features.map((feature) => `• ${feature}`).join("\n")
-      },
-      {
-        name: "Entrega",
-        value: plan.delivery
-      }
-    );
-}
-
-function storePanelEmbed(plans, shop) {
-  const description = plans
-    .map((plan) => `**${plan.name}**\n${money(plan)} - ${plan.description}`)
-    .join("\n\n");
-
-  return new EmbedBuilder()
-    .setColor(theme.dark)
-    .setTitle(shop.storeName || "Loja de Bots")
-    .setDescription(`Escolha um plano e abra seu atendimento de compra.\n\n${description || "Nenhum plano cadastrado."}`)
-    .addFields(
-      { name: "Pagamento", value: shop.pixKey ? "Pix configurado" : "Pix pendente", inline: true },
-      { name: "Suporte", value: shop.supportUrl || "Via ticket", inline: true }
-    )
-    .setFooter({ text: "Selecione um plano no menu abaixo." });
 }
 
 function shopPanelEmbed(shop) {
@@ -1664,19 +1570,6 @@ function configRows() {
   ];
 }
 
-function planSelect(plans) {
-  return new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId("shop:select-plan")
-      .setPlaceholder("Escolha um plano")
-      .addOptions(plans.map((plan) => ({
-        label: `${plan.name} - R$ ${plan.price}`,
-        description: plan.description.slice(0, 100),
-        value: plan.id
-      })))
-  );
-}
-
 function paymentRows(orderId, shop = {}) {
   return [
     new ActionRowBuilder().addComponents(
@@ -1725,32 +1618,6 @@ function isStaff(member, shop = {}) {
   if (!member) return false;
   return member.permissions.has(PermissionFlagsBits.ManageGuild)
     || (shop.staffRoleId && member.roles.cache.has(shop.staffRoleId));
-}
-
-function orderEmbed(order, plan, shop) {
-  return new EmbedBuilder()
-    .setColor(theme.warning)
-    .setTitle("Pedido de plano")
-    .setDescription(`Plano escolhido: **${plan.name}**`)
-    .addFields(
-      { name: "Valor", value: money(plan), inline: true },
-      { name: "Cliente", value: `<@${order.userId}>`, inline: true },
-      { name: "Status", value: order.status, inline: true },
-      { name: "Chave Pix", value: `\`${shop.pixKey || "Configure o Pix em /painel-loja"}\`` }
-    )
-    .setFooter({ text: `Pedido ${order.id}` });
-}
-
-function deliveryEmbed(order, plan, shop) {
-  const supportLine = shop.supportUrl ? `\nSuporte: ${shop.supportUrl}` : "";
-
-  return new EmbedBuilder()
-    .setColor(theme.success)
-    .setTitle("Pagamento aprovado")
-    .setDescription(
-      `Seu plano **${plan.name}** foi aprovado.\n\n${plan.delivery}${supportLine}`
-    )
-    .addFields({ name: "Pedido", value: order.id, inline: true });
 }
 
 async function log(guild, embed) {
@@ -1868,89 +1735,6 @@ function isAutoPaymentApproved(payment, provider) {
   return payment.status === "approved";
 }
 
-async function createOrderTicket(interaction, plan) {
-  const shop = await getShopSettings(interaction.guildId);
-  if (!shop.salesEnabled) {
-    await interaction.reply({ content: "As vendas estao desligadas no momento.", ephemeral: true });
-    return;
-  }
-  const orderId = `${Date.now().toString(36)}-${interaction.user.id.slice(-4)}`;
-  const guild = interaction.guild;
-  const channelName = `compra-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90);
-
-  const permissionOverwrites = [
-    {
-      id: guild.id,
-      deny: [PermissionFlagsBits.ViewChannel]
-    },
-    {
-      id: interaction.user.id,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ReadMessageHistory
-      ]
-    },
-    {
-      id: client.user.id,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ManageChannels,
-        PermissionFlagsBits.ReadMessageHistory
-      ]
-    }
-  ];
-
-  if (shop.staffRoleId) {
-    permissionOverwrites.push({
-      id: shop.staffRoleId,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ReadMessageHistory
-      ]
-    });
-  }
-
-  const channel = await guild.channels.create({
-    name: channelName,
-    type: ChannelType.GuildText,
-    parent: shop.ticketCategoryId || null,
-    permissionOverwrites
-  });
-
-  const order = {
-    id: orderId,
-    userId: interaction.user.id,
-    guildId: guild.id,
-    channelId: channel.id,
-    planId: plan.id,
-    total: parsePrice(plan.price),
-    status: "aguardando_pagamento",
-    proof: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-
-  await saveOrder(order);
-  await channel.send({
-    content: `<@${interaction.user.id}> ${shop.staffRoleId ? `<@&${shop.staffRoleId}>` : ""}`,
-    embeds: [orderEmbed(order, plan, shop)],
-    components: paymentRows(order.id, shop)
-  });
-
-  await log(guild, new EmbedBuilder()
-    .setColor(theme.primary)
-    .setTitle("Novo pedido")
-    .setDescription(`Pedido **${order.id}** criado por <@${order.userId}> no plano **${plan.name}**.`));
-
-  await interaction.reply({
-    content: `Seu ticket de compra foi criado: ${channel}`,
-    ephemeral: true
-  });
-}
-
 async function createProductTicket(interaction, product, field = null, acceptedTerms = false) {
   const shop = await getShopSettings(interaction.guildId);
   if (!shop.salesEnabled) {
@@ -2056,32 +1840,15 @@ async function createProductTicket(interaction, product, field = null, acceptedT
 }
 
 async function sendStorePanel(interaction) {
-  const plans = await getPlans();
-  const shop = await getShopSettings(interaction.guildId);
-  if (!plans.length) {
-    await interaction.reply({ content: "Nenhum plano foi cadastrado em `data/plans.json`.", ephemeral: true });
+  const panels = await getPanels();
+  const panel = panels.find((item) => item.id === "loja-principal") || panels.find((item) => item.active !== false);
+  if (!panel) {
+    await interaction.reply({ content: "Nenhum painel de produtos foi cadastrado. Use `/criar painel`.", ephemeral: true });
     return;
   }
 
-  await interaction.channel.send({
-    embeds: [storePanelEmbed(plans, shop)],
-    components: [planSelect(plans)]
-  });
-
-  await interaction.reply({ content: "Painel da loja enviado.", ephemeral: true });
-}
-
-async function sendPlans(interaction) {
-  const plans = await getPlans();
-  if (!plans.length) {
-    await interaction.reply({ content: "Nenhum plano disponivel no momento.", ephemeral: true });
-    return;
-  }
-
-  await interaction.reply({
-    embeds: plans.map(planEmbed),
-    ephemeral: true
-  });
+  await publishPanel(interaction.channel, panel.id, interaction.guildId);
+  await interaction.reply({ content: "Painel de produtos enviado.", ephemeral: true });
 }
 
 async function sendConfigPanel(interaction) {
@@ -2935,18 +2702,6 @@ async function handleShopModal(interaction, action) {
   });
 }
 
-async function handlePlanSelect(interaction) {
-  const plans = await getPlans();
-  const plan = plans.find((item) => item.id === interaction.values[0]);
-
-  if (!plan) {
-    await interaction.reply({ content: "Plano nao encontrado.", ephemeral: true });
-    return;
-  }
-
-  await createOrderTicket(interaction, plan);
-}
-
 async function handlePanelSelect(interaction) {
   const products = await getProducts();
   const product = products.find((item) => item.id === interaction.values[0]);
@@ -3777,13 +3532,11 @@ async function handleApprove(interaction, orderId, requireStaff = true) {
         { name: "Valor", value: brl(order.total), inline: true }
       );
   } else {
-    const plans = await getPlans();
-    const plan = plans.find((item) => item.id === order.planId);
-    if (!plan) {
-      await interaction.reply({ content: "Plano nao encontrado.", ephemeral: true });
-      return;
-    }
-    embed = deliveryEmbed(order, plan, shop);
+    await interaction.reply({
+      content: "Esse pedido usa um modelo antigo. O sistema agora usa apenas produtos e paineis.",
+      ephemeral: true
+    });
+    return;
   }
 
   order.status = "aprovado";
@@ -3992,7 +3745,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "painel-config") await sendConfigPanel(interaction);
       if (interaction.commandName === "botconfig") await sendBotConfigPanel(interaction);
       if (interaction.commandName === "painel-loja") await sendShopPanel(interaction);
-      if (interaction.commandName === "planos") await sendPlans(interaction);
       if (interaction.commandName === "criar") await handleCreateCommand(interaction);
       if (interaction.commandName === "set") await handleSetCommand(interaction);
       if (interaction.commandName === "estatistica") await handleStatsCommand(interaction);
@@ -4007,11 +3759,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "avaliar") await handleReviewCommand(interaction);
       if (interaction.commandName === "protecao") await handleProtectionCommand(interaction);
       if (interaction.commandName === "apps") await sendAppsPanel(interaction);
-      return;
-    }
-
-    if (interaction.isStringSelectMenu() && interaction.customId === "shop:select-plan") {
-      await handlePlanSelect(interaction);
       return;
     }
 

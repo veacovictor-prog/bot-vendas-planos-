@@ -1,14 +1,13 @@
 # Loja de Bots Discord
 
-Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre ticket privado para o cliente, mostra dados de Pix, registra pedido em JSON e permite que a equipe aprove ou reprove a compra.
+Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre carrinho privado para o cliente, mostra dados de Pix, registra pedido em JSON e permite que a equipe aprove ou reprove a compra.
 
 ## Funcoes
 
-- `/setup-loja`: envia o painel de planos no canal atual.
+- `/setup-loja`: envia o painel principal de produtos no canal atual.
 - `/painel-loja`: configura nome da loja, Pix, canal de logs, categoria de tickets e cargo staff.
 - `/painel-config`: envia o painel para configurar boas-vindas, auto-cargo e anti-fake.
 - `/botconfig`: abre o painel central estilo Promisse com loja, tickets, protecao, sorteios, apps e automacoes.
-- `/planos`: mostra os planos disponiveis.
 - `/criar produto`: cria produto com preco, descricao, entrega manual ou automatica e estoque.
 - `/criar campo`: adiciona uma opcao/campo dentro de um produto.
 - `/criar painel`: cria painel com varios produtos.
@@ -35,7 +34,7 @@ Bot de Discord para vender bots em planos. Ele cria um painel com botoes, abre t
 
 ## Modulos estilo Promisse Apps
 
-- **Sistema de vendas:** planos, ticket de compra, Pix e aprovacao por staff.
+- **Sistema de vendas:** produtos, carrinho de compra, Pix e aprovacao por staff.
 - **Produtos e estoque:** produtos com entrega manual ou automatica.
 - **Painel multi-produto:** um menu com varios produtos em um painel so.
 - **Cupons:** desconto percentual com limite de uso opcional.
@@ -362,7 +361,7 @@ Os dados de loja, Pix, canais e cargo staff voce configura depois pelo comando `
 
 ### 8. Criar volume para salvar dados
 
-Se voce quiser que pedidos, planos e configuracoes nao sumam em reinicios:
+Se voce quiser que pedidos, produtos e configuracoes nao sumam em reinicios:
 
 1. No Railway, abra o servico do bot.
 2. Va em **Volumes**.
@@ -441,10 +440,6 @@ Convide o bot com permissoes de:
 - Embed Links
 - Use Slash Commands
 - Read Message History
-
-## Editar planos
-
-Altere `data/plans.json`. O campo `id` deve ser unico e sem espacos.
 
 ## Observacao sobre Pix
 
