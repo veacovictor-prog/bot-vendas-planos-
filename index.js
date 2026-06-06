@@ -459,7 +459,7 @@ function defaultGuildSettings() {
     ai: {
       enabled: false,
       apiKey: process.env.GEMINI_API_KEY || "",
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       maxReplies: 20,
       storeInfo: "",
       productInfo: "",
@@ -754,7 +754,7 @@ function aiPanelEmbed(settings) {
     .setDescription("Treine a IA para responder perguntas iniciais antes da equipe assumir o atendimento.")
     .addFields(
       { name: "Status", value: yesNo(settings.ai.enabled), inline: true },
-      { name: "Modelo", value: settings.ai.model || "gemini-1.5-flash", inline: true },
+      { name: "Modelo", value: settings.ai.model || "gemini-2.0-flash", inline: true },
       { name: "Limite", value: `${settings.ai.maxReplies || 20} resposta(s)`, inline: true },
       { name: "Loja", value: shortText(settings.ai.storeInfo) },
       { name: "Produtos", value: shortText(settings.ai.productInfo) },
@@ -2237,7 +2237,7 @@ async function handleAiButton(interaction, action) {
           .setCustomId("model")
           .setLabel("Modelo Gemini")
           .setStyle(TextInputStyle.Short)
-          .setValue(settings.ai.model || "gemini-1.5-flash")
+          .setValue(settings.ai.model || "gemini-2.0-flash")
           .setRequired(true)
       )
     );
@@ -2310,7 +2310,7 @@ async function handleAiModal(interaction, action) {
   if (action === "api") {
     settings.ai.enabled = yes(interaction.fields.getTextInputValue("enabled"));
     settings.ai.apiKey = interaction.fields.getTextInputValue("apiKey").trim();
-    settings.ai.model = interaction.fields.getTextInputValue("model").trim() || "gemini-1.5-flash";
+    settings.ai.model = interaction.fields.getTextInputValue("model").trim() || "gemini-2.0-flash";
   }
 
   if (action === "training") {
@@ -2444,6 +2444,12 @@ async function handleTicketButton(interaction, action, ticketId) {
   }
 }
 
+function normalizeGeminiModel(model) {
+  const clean = String(model || "").trim();
+  if (!clean || clean === "gemini-1.5-flash") return "gemini-2.0-flash";
+  return clean;
+}
+
 async function generateAiReply(settings, message, question = null) {
   if (!settings.ai.enabled || !settings.ai.apiKey) return null;
 
@@ -2458,10 +2464,16 @@ async function generateAiReply(settings, message, question = null) {
     `Cliente perguntou: ${question || message.content}`
   ].filter(Boolean).join("\n\n");
 
-  const model = settings.ai.model || "gemini-1.5-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${settings.ai.apiKey}`, {
+  const model = normalizeGeminiModel(settings.ai.model);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  let response;
+
+  try {
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${settings.ai.apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal: controller.signal,
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
@@ -2469,7 +2481,13 @@ async function generateAiReply(settings, message, question = null) {
         maxOutputTokens: 500
       }
     })
-  });
+    });
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("Gemini demorou demais para responder. Tente de novo ou confira a chave/modelo.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
@@ -4050,16 +4068,23 @@ client.on(Events.MessageCreate, async (message) => {
     if (!settings.ai.enabled || Number(conversation.aiReplies || 0) >= (settings.ai.maxReplies || 20)) return;
 
     await message.channel.sendTyping().catch(() => null);
+    let aiErrorHandled = false;
     const reply = await generateAiReply(settings, message).catch(async (error) => {
       console.error("Erro na IA:", error);
       await log(message.guild, new EmbedBuilder()
         .setColor(theme.danger)
         .setTitle("Erro na IA")
         .setDescription(error.message.slice(0, 1000)));
+      await message.reply(`A IA nao conseguiu responder agora. Erro: ${error.message.slice(0, 300)}`).catch(() => null);
+      aiErrorHandled = true;
       return null;
     });
 
-    if (!reply) return;
+    if (!reply) {
+      if (aiErrorHandled) return;
+      await message.reply("A IA recebeu sua mensagem, mas nao retornou texto. Confira a chave e o modelo em `/painel-ia`.").catch(() => null);
+      return;
+    }
 
     conversation.aiReplies = Number(conversation.aiReplies || 0) + 1;
     conversation.updatedAt = new Date().toISOString();

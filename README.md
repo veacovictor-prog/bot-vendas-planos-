@@ -307,6 +307,12 @@ Observacoes importantes:
 - Treinamento: informacoes da loja, produtos e politica.
 - Comportamento: limite de respostas e FAQ no formato `pergunta=resposta`.
 
+Modelo recomendado:
+
+```txt
+gemini-2.0-flash
+```
+
 3. Publique o painel:
 
 ```txt
