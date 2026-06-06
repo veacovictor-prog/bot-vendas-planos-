@@ -179,6 +179,21 @@ const commands = [
     .setName("carteira")
     .setDescription("Mostra os recebimentos Pix da carteira integrada."),
   new SlashCommandBuilder()
+    .setName("config-pagamento")
+    .setDescription("Configura Pix e pagamentos automaticos sem mexer no Railway.")
+    .addSubcommand((subcommand) => subcommand
+      .setName("pix")
+      .setDescription("Configura chave Pix e metodos manuais."))
+    .addSubcommand((subcommand) => subcommand
+      .setName("efi")
+      .setDescription("Configura Pix automatico da Efi Bank."))
+    .addSubcommand((subcommand) => subcommand
+      .setName("mercadopago")
+      .setDescription("Configura Pix automatico do Mercado Pago."))
+    .addSubcommand((subcommand) => subcommand
+      .setName("status")
+      .setDescription("Mostra se os pagamentos estao configurados.")),
+  new SlashCommandBuilder()
     .setName("painel-ia")
     .setDescription("Configura o suporte com IA."),
   new SlashCommandBuilder()
@@ -2118,6 +2133,32 @@ async function handleWalletStatsCommand(interaction) {
   });
 }
 
+async function handlePaymentConfigCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode configurar pagamentos.", ephemeral: true });
+    return;
+  }
+
+  const section = interaction.options.getSubcommand();
+  if (section === "pix") {
+    await handleShopButton(interaction, "payment");
+    return;
+  }
+
+  if (section === "efi") {
+    await handleShopButton(interaction, "efi");
+    return;
+  }
+
+  if (section === "mercadopago") {
+    await handleShopButton(interaction, "mercadopago");
+    return;
+  }
+
+  await handleWalletStatsCommand(interaction);
+}
+
 async function sendAiPanel(interaction) {
   const settings = await getGuildSettings(interaction.guildId);
   await interaction.channel.send({ embeds: [aiPanelEmbed(settings)], components: aiRows() });
@@ -2543,6 +2584,66 @@ async function handleShopButton(interaction, action) {
     );
   }
 
+  if (action === "efi") {
+    modal.setTitle("Configurar Efi Bank");
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("efiClientId")
+          .setLabel("Efi Client ID")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.efiClientId || "")
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("efiClientSecret")
+          .setLabel("Efi Client Secret")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.efiClientSecret || "")
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("efiCertificateBase64")
+          .setLabel("Certificado Pix em base64")
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(shop.efiCertificateBase64 || "")
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("efiPixKey")
+          .setLabel("Chave Pix cadastrada na Efi")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.efiPixKey || shop.pixKey || "")
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("efiSandbox")
+          .setLabel("Sandbox? sim ou nao")
+          .setStyle(TextInputStyle.Short)
+          .setValue(shop.efiSandbox ? "sim" : "nao")
+          .setRequired(true)
+      )
+    );
+  }
+
+  if (action === "mercadopago") {
+    modal.setTitle("Configurar Mercado Pago");
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("mercadoPagoAccessToken")
+          .setLabel("Access Token Mercado Pago")
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(shop.mercadoPagoAccessToken || "")
+          .setRequired(true)
+      )
+    );
+  }
+
   if (action === "emojis") {
     modal.addComponents(
       new ActionRowBuilder().addComponents(
@@ -2663,6 +2764,31 @@ async function handleShopModal(interaction, action) {
     settings.shop.paymentMethods.wallet = Boolean(settings.shop.mercadoPagoAccessToken || settings.shop.efiClientId);
     settings.shop.paymentMethods.mercadoPago = Boolean(settings.shop.mercadoPagoAccessToken);
     settings.shop.paymentMethods.efiBank = Boolean(settings.shop.efiClientId && settings.shop.efiClientSecret && settings.shop.efiCertificateBase64);
+  }
+
+  if (action === "efi") {
+    settings.shop.efiClientId = interaction.fields.getTextInputValue("efiClientId").trim();
+    settings.shop.efiClientSecret = interaction.fields.getTextInputValue("efiClientSecret").trim();
+    settings.shop.efiCertificateBase64 = interaction.fields.getTextInputValue("efiCertificateBase64").trim();
+    settings.shop.efiPixKey = interaction.fields.getTextInputValue("efiPixKey").trim();
+    settings.shop.pixKey = settings.shop.efiPixKey || settings.shop.pixKey || "";
+    settings.shop.efiSandbox = boolFromText(interaction.fields.getTextInputValue("efiSandbox"));
+    settings.shop.paymentProvider = "efi";
+    settings.shop.paymentMethods = settings.shop.paymentMethods || {};
+    settings.shop.paymentMethods.pix = true;
+    settings.shop.paymentMethods.wallet = true;
+    settings.shop.paymentMethods.efiBank = Boolean(settings.shop.efiClientId && settings.shop.efiClientSecret && settings.shop.efiCertificateBase64 && settings.shop.efiPixKey);
+    settings.shop.paymentMethods.mercadoPago = false;
+  }
+
+  if (action === "mercadopago") {
+    settings.shop.mercadoPagoAccessToken = interaction.fields.getTextInputValue("mercadoPagoAccessToken").trim();
+    settings.shop.paymentProvider = "mercadopago";
+    settings.shop.paymentMethods = settings.shop.paymentMethods || {};
+    settings.shop.paymentMethods.pix = true;
+    settings.shop.paymentMethods.wallet = true;
+    settings.shop.paymentMethods.mercadoPago = Boolean(settings.shop.mercadoPagoAccessToken);
+    settings.shop.paymentMethods.efiBank = false;
   }
 
   if (action === "emojis") {
@@ -3750,6 +3876,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "estatistica") await handleStatsCommand(interaction);
       if (interaction.commandName === "gerar-pix") await handleGeneratePix(interaction);
       if (interaction.commandName === "carteira") await handleWalletStatsCommand(interaction);
+      if (interaction.commandName === "config-pagamento") await handlePaymentConfigCommand(interaction);
       if (interaction.commandName === "painel-ia") await sendAiPanel(interaction);
       if (interaction.commandName === "ticket-painel") await sendTicketPanel(interaction);
       if (interaction.commandName === "blacklist") await handleBlacklistCommand(interaction);

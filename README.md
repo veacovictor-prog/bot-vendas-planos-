@@ -16,6 +16,8 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 - `/set painel`: publica um painel com menu de selecao.
 - `/estatistica`: mostra pedidos, aprovados e faturamento.
 - `/gerar-pix`: gera uma cobranca Pix manual com copia e cola.
+- `/config-pagamento`: configura Pix, Efi Bank e Mercado Pago por modal no Discord.
+- `/carteira`: mostra recebimentos da carteira integrada.
 - `/painel-ia`: configura IA de atendimento com Gemini.
 - `/ticket-painel`: publica painel de suporte.
 - `/blacklist`: bloqueia/libera usuarios da loja.
@@ -193,22 +195,20 @@ Quando o produto tiver campos, o cliente clica em comprar e escolhe a opcao no m
 
 A carteira integrada pode usar Efí Bank ou Mercado Pago. No Efí Bank o bot gera Pix pela API Pix, o cliente paga, o dinheiro cai na sua conta Efí e voce saca depois pelo painel/app da Efí.
 
-Configure de um destes jeitos:
+Configure direto pelo Discord, sem mexer no Railway:
 
-```env
-PAYMENT_PROVIDER=efi
-EFI_CLIENT_ID=seu_client_id
-EFI_CLIENT_SECRET=seu_client_secret
-EFI_CERTIFICATE_BASE64=certificado_pix_em_base64
-EFI_PIX_KEY=sua_chave_pix_cadastrada_na_efi
-EFI_SANDBOX=false
+```txt
+/config-pagamento pix
+/config-pagamento efi
+/config-pagamento mercadopago
+/config-pagamento status
 ```
 
-Ou pelo Discord:
+Tambem da para abrir pelo painel:
 
 ```txt
 /botconfig
-Loja > Carteira MP
+Loja > Carteira integrada
 ```
 
 No carrinho o cliente usa:
