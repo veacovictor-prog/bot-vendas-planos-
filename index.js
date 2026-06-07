@@ -740,6 +740,19 @@ function idsText(items) {
     .join("\n");
 }
 
+function panelProducts(panel, products) {
+  return (panel.productIds || [])
+    .map((productId) => findByIdOrName(products, productId))
+    .filter((product) => product && product.active !== false);
+}
+
+function missingPanelProducts(panel, products) {
+  return (panel.productIds || [])
+    .filter((productId) => !findByIdOrName(products, productId))
+    .map((productId) => `\`${productId}\``)
+    .join(", ");
+}
+
 function productStockText(product) {
   if (product.deliveryMode === "automatic") return `${product.stock?.length || 0} disponivel(is)`;
   return "Entrega manual";
@@ -2023,13 +2036,19 @@ async function handleCreateCommand(interaction) {
   }
 
   if (subcommand === "painel") {
+    const products = await getProducts();
     const panels = await getPanels();
     const id = normalizeId(interaction.options.getString("id"));
+    const productIds = interaction.options.getString("produtos")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => findByIdOrName(products, item)?.id || normalizeId(item));
     const panel = {
       id,
       name: interaction.options.getString("nome"),
       description: interaction.options.getString("descricao") || "Escolha um produto abaixo.",
-      productIds: interaction.options.getString("produtos").split(",").map((item) => normalizeId(item)).filter(Boolean),
+      productIds,
       active: true
     };
 
@@ -2143,18 +2162,20 @@ async function handleSetCommand(interaction) {
       return;
     }
 
-    const panelProducts = panel.productIds
-      .map((productId) => products.find((product) => product.id === productId && product.active))
-      .filter(Boolean);
+    const resolvedProducts = panelProducts(panel, products);
 
-    if (!panelProducts.length) {
-      await interaction.reply({ content: "Nenhum produto ativo neste painel.", ephemeral: true });
+    if (!resolvedProducts.length) {
+      const missing = missingPanelProducts(panel, products);
+      await interaction.reply({
+        content: `Nenhum produto ativo neste painel.${missing ? `\nProdutos nao encontrados no painel: ${missing}` : ""}\n\nUse \`/set listar\` para ver os IDs corretos.`,
+        ephemeral: true
+      });
       return;
     }
 
     await interaction.channel.send({
-      embeds: [panelEmbed(panel, panelProducts, shop)],
-      components: [panelSelect(panel, panelProducts)]
+      embeds: [panelEmbed(panel, resolvedProducts, shop)],
+      components: [panelSelect(panel, resolvedProducts)]
     });
     await interaction.reply({ content: "Painel publicado.", ephemeral: true });
     return;
@@ -2196,7 +2217,12 @@ async function handleSetCommand(interaction) {
       : await publishPanel(interaction.channel, id, interaction.guildId);
 
     if (!message) {
-      await interaction.reply({ content: "Produto ou painel nao encontrado.", ephemeral: true });
+      await interaction.reply({
+        content: type === "panel"
+          ? `Painel encontrado, mas nenhum produto ativo dele foi encontrado.\n\nUse \`/set listar\` e recrie o painel com os IDs certos dos produtos.`
+          : "Produto encontrado, mas nao consegui publicar.",
+        ephemeral: true
+      });
       return;
     }
 
@@ -2870,11 +2896,9 @@ async function publishPanel(channel, panelId, guildId, content = null) {
   const panels = await getPanels();
   const panel = findByIdOrName(panels, panelId);
   if (!panel) return false;
-  const panelProducts = panel.productIds
-    .map((productId) => products.find((product) => product.id === productId && product.active))
-    .filter(Boolean);
-  if (!panelProducts.length) return false;
-  return channel.send({ content, embeds: [panelEmbed(panel, panelProducts, shop)], components: [panelSelect(panel, panelProducts)] });
+  const resolvedProducts = panelProducts(panel, products);
+  if (!resolvedProducts.length) return false;
+  return channel.send({ content, embeds: [panelEmbed(panel, resolvedProducts, shop)], components: [panelSelect(panel, resolvedProducts)] });
 }
 
 async function handleBlacklistCommand(interaction) {
