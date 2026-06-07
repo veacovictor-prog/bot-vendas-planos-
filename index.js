@@ -48,13 +48,60 @@ const config = {
 
 const defaultProducts = [
   {
-    id: "bot-vendas",
-    name: "Bot de Vendas",
-    price: 49.9,
-    description: "Bot de vendas Discord com tickets, painel e suporte inicial.",
+    id: "ups-de-conta",
+    name: "UPS de Conta",
+    price: 0,
+    description: "🌊 Bosses - Rip indra, Katakuri v2 e Barba Negra.\n🛡️ Leviathan - e todos os itens dele.\n⚔️ Todas as faixas do dojo.\n\nSe precisar de outro tipo de item, abre ticket para negociarmos.",
+    imageUrl: "",
     deliveryMode: "manual",
     stock: [],
-    fields: [],
+    fields: [
+      {
+        id: "ilhas",
+        name: "🌊 Ilhas",
+        price: 0,
+        description: "Miragem, Kitsune e Vulcao.",
+        deliveryMode: "manual",
+        stock: [],
+        active: true
+      },
+      {
+        id: "estilos-de-lutas",
+        name: "🥋 Estilos de lutas",
+        price: 0,
+        description: "Todos os estilos.",
+        deliveryMode: "manual",
+        stock: [],
+        active: true
+      },
+      {
+        id: "racas-v4",
+        name: "🧬 Racas v4",
+        price: 0,
+        description: "Completa ou transformacao.",
+        deliveryMode: "manual",
+        stock: [],
+        active: true
+      },
+      {
+        id: "pegamos-racas",
+        name: "🐉 Pegamos racas",
+        price: 0,
+        description: "Ghoul, Cyborg e Draco.",
+        deliveryMode: "manual",
+        stock: [],
+        active: true
+      },
+      {
+        id: "level-fragmentos",
+        name: "💎 Level e fragmentos",
+        price: 0,
+        description: "Up de level e fragmentos.",
+        deliveryMode: "manual",
+        stock: [],
+        active: true
+      }
+    ],
     active: true,
     couponsEnabled: true
   }
@@ -63,9 +110,9 @@ const defaultProducts = [
 const defaultPanels = [
   {
     id: "loja-principal",
-    name: "Loja Principal",
-    description: "Escolha um produto abaixo para abrir seu carrinho.",
-    productIds: ["bot-vendas"],
+    name: "UPS de Conta",
+    description: "Clique abaixo para ver as opcoes disponiveis.",
+    productIds: ["ups-de-conta"],
     active: true
   }
 ];
@@ -194,19 +241,8 @@ const commands = [
       .setName("status")
       .setDescription("Mostra se os pagamentos estao configurados.")),
   new SlashCommandBuilder()
-    .setName("painel-ia")
-    .setDescription("Configura o suporte com IA."),
-  new SlashCommandBuilder()
-    .setName("ia-teste")
-    .setDescription("Testa se a IA esta ligada e respondendo.")
-    .addStringOption((option) => option.setName("pergunta").setDescription("Pergunta para testar a IA.").setRequired(true)),
-  new SlashCommandBuilder()
-    .setName("teste-ia")
-    .setDescription("Alias para testar se a IA esta ligada e respondendo.")
-    .addStringOption((option) => option.setName("pergunta").setDescription("Pergunta para testar a IA.").setRequired(true)),
-  new SlashCommandBuilder()
     .setName("ticket-painel")
-    .setDescription("Publica o painel de suporte com ticket e IA."),
+    .setDescription("Publica o painel de suporte com ticket."),
   new SlashCommandBuilder()
     .setName("blacklist")
     .setDescription("Gerencia usuarios bloqueados da loja.")
@@ -751,49 +787,11 @@ function shopRows(shop = {}) {
   ];
 }
 
-function aiPanelEmbed(settings) {
-  return new EmbedBuilder()
-    .setColor(theme.cyan)
-    .setTitle("Suporte com IA")
-    .setDescription("Treine a IA para responder perguntas iniciais antes da equipe assumir o atendimento.")
-    .addFields(
-      { name: "Status", value: yesNo(settings.ai.enabled), inline: true },
-      { name: "Modelo", value: settings.ai.model || "gemini-2.0-flash", inline: true },
-      { name: "Limite", value: `${settings.ai.maxReplies || 20} resposta(s)`, inline: true },
-      { name: "Loja", value: shortText(settings.ai.storeInfo) },
-      { name: "Produtos", value: shortText(settings.ai.productInfo) },
-      { name: "Politica", value: shortText(settings.ai.policy) }
-    )
-    .setFooter({ text: "A IA para quando um staff assume o ticket." });
-}
-
-function aiRows() {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("aicfg:api")
-        .setEmoji("🔑")
-        .setLabel("API")
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId("aicfg:training")
-        .setEmoji("📚")
-        .setLabel("Treinamento")
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId("aicfg:behavior")
-        .setEmoji("⚙️")
-        .setLabel("Comportamento")
-        .setStyle(ButtonStyle.Secondary)
-    )
-  ];
-}
-
 function supportPanelEmbed(shop) {
   return new EmbedBuilder()
     .setColor(theme.dark)
     .setTitle("Central de atendimento")
-    .setDescription("Abra um ticket para falar com o suporte. Se a IA estiver ativa, ela responde perguntas iniciais enquanto a equipe chega.")
+    .setDescription("Abra um ticket para falar com o suporte. A equipe vai responder assim que possivel.")
     .addFields(
       { name: "Loja", value: shop.storeName || "Loja de Bots", inline: true },
       { name: "Equipe", value: shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Staff", inline: true }
@@ -1010,12 +1008,12 @@ function automationPanelEmbed(settings) {
   return new EmbedBuilder()
     .setColor(theme.cyan)
     .setTitle("Automacoes")
-    .setDescription("Configure repost, boas-vindas, auto-cargo e atendimento com IA.")
+    .setDescription("Configure repost, boas-vindas, auto-cargo e atendimento.")
     .addFields(
       { name: "Boas-vindas", value: yesNo(settings.welcome?.enabled), inline: true },
       { name: "Auto-cargo", value: yesNo(settings.autoRole?.enabled), inline: true },
-      { name: "IA em tickets", value: yesNo(settings.ai?.enabled), inline: true },
-      { name: "Comandos", value: "`/painel-config`, `/painel-ia`, `/repost`" }
+      { name: "Atendimentos", value: "Tickets e automacoes", inline: true },
+      { name: "Comandos", value: "`/painel-config`, `/ticket-painel`, `/repost`" }
     );
 }
 
@@ -2172,173 +2170,10 @@ async function handlePaymentConfigCommand(interaction) {
   await handleWalletStatsCommand(interaction);
 }
 
-async function sendAiPanel(interaction) {
-  const settings = await getGuildSettings(interaction.guildId);
-  await interaction.channel.send({ embeds: [aiPanelEmbed(settings)], components: aiRows() });
-  await interaction.reply({ content: "Painel IA enviado.", ephemeral: true });
-}
-
-async function handleAiTestCommand(interaction) {
-  const settings = await getGuildSettings(interaction.guildId);
-  const question = interaction.options.getString("pergunta");
-
-  if (!settings.ai.enabled) {
-    await interaction.reply({ content: "A IA esta desligada. Use `/painel-ia` > API e coloque `sim` em ativar.", ephemeral: true });
-    return;
-  }
-
-  if (!settings.ai.apiKey) {
-    await interaction.reply({ content: "A chave Gemini API nao foi configurada. Use `/painel-ia` > API.", ephemeral: true });
-    return;
-  }
-
-  await interaction.deferReply({ ephemeral: true });
-  const reply = await generateAiReply(settings, { content: question }, question).catch((error) => {
-    console.error("Erro no teste de IA:", error);
-    return `Erro ao chamar Gemini: ${error.message}`;
-  });
-  await interaction.editReply(reply ? reply.slice(0, 1900) : "A IA nao retornou texto. Confira o modelo e a chave API.");
-}
-
 async function sendTicketPanel(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   await interaction.channel.send({ embeds: [supportPanelEmbed(shop)], components: supportRows() });
   await interaction.reply({ content: "Painel de ticket enviado.", ephemeral: true });
-}
-
-async function handleAiButton(interaction, action) {
-  const shop = await getShopSettings(interaction.guildId);
-  if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode configurar a IA.", ephemeral: true });
-    return;
-  }
-
-  const settings = await getGuildSettings(interaction.guildId);
-  const modal = new ModalBuilder()
-    .setCustomId(`aicfg-modal:${action}`)
-    .setTitle(`Configurar IA ${action}`);
-
-  if (action === "api") {
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("enabled")
-          .setLabel("Ativar IA? sim ou nao")
-          .setStyle(TextInputStyle.Short)
-          .setValue(settings.ai.enabled ? "sim" : "nao")
-          .setRequired(true)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("apiKey")
-          .setLabel("Chave Gemini API")
-          .setStyle(TextInputStyle.Short)
-          .setValue(settings.ai.apiKey || "")
-          .setRequired(false)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("model")
-          .setLabel("Modelo Gemini")
-          .setStyle(TextInputStyle.Short)
-          .setValue(settings.ai.model || "gemini-2.0-flash")
-          .setRequired(true)
-      )
-    );
-  }
-
-  if (action === "training") {
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("storeInfo")
-          .setLabel("Informacoes da loja")
-          .setStyle(TextInputStyle.Paragraph)
-          .setValue(settings.ai.storeInfo || "")
-          .setRequired(false)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("productInfo")
-          .setLabel("Informacoes dos produtos")
-          .setStyle(TextInputStyle.Paragraph)
-          .setValue(settings.ai.productInfo || "")
-          .setRequired(false)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("policy")
-          .setLabel("Politica da loja")
-          .setStyle(TextInputStyle.Paragraph)
-          .setValue(settings.ai.policy || "")
-          .setRequired(false)
-      )
-    );
-  }
-
-  if (action === "behavior") {
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("maxReplies")
-          .setLabel("Maximo de respostas por ticket")
-          .setStyle(TextInputStyle.Short)
-          .setValue(String(settings.ai.maxReplies || 20))
-          .setRequired(true)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("faq")
-          .setLabel("FAQ: pergunta=resposta, uma por linha")
-          .setStyle(TextInputStyle.Paragraph)
-          .setValue((settings.ai.faq || []).map((item) => `${item.q}=${item.a}`).join("\n"))
-          .setRequired(false)
-      )
-    );
-  }
-
-  await interaction.showModal(modal);
-}
-
-async function handleAiModal(interaction, action) {
-  const shop = await getShopSettings(interaction.guildId);
-  if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode configurar a IA.", ephemeral: true });
-    return;
-  }
-
-  const yes = (value) => ["sim", "s", "yes", "y", "true", "1"].includes(value.trim().toLowerCase());
-  const settings = await getGuildSettings(interaction.guildId);
-  settings.ai = settings.ai || defaultGuildSettings().ai;
-
-  if (action === "api") {
-    settings.ai.enabled = yes(interaction.fields.getTextInputValue("enabled"));
-    settings.ai.apiKey = interaction.fields.getTextInputValue("apiKey").trim();
-    settings.ai.model = normalizeGeminiModel(interaction.fields.getTextInputValue("model"));
-  }
-
-  if (action === "training") {
-    settings.ai.storeInfo = interaction.fields.getTextInputValue("storeInfo").trim();
-    settings.ai.productInfo = interaction.fields.getTextInputValue("productInfo").trim();
-    settings.ai.policy = interaction.fields.getTextInputValue("policy").trim();
-  }
-
-  if (action === "behavior") {
-    const maxReplies = Number(interaction.fields.getTextInputValue("maxReplies").trim());
-    settings.ai.maxReplies = Number.isFinite(maxReplies) && maxReplies > 0 ? Math.min(maxReplies, 100) : 20;
-    settings.ai.faq = interaction.fields.getTextInputValue("faq")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [q, ...rest] = line.split("=");
-        return { q: (q || "").trim(), a: rest.join("=").trim() };
-      })
-      .filter((item) => item.q && item.a);
-  }
-
-  await saveGuildSettings(interaction.guildId, settings);
-  await interaction.reply({ content: "IA configurada.", embeds: [aiPanelEmbed(settings)], ephemeral: true });
 }
 
 async function createSupportTicket(interaction) {
@@ -2388,7 +2223,7 @@ async function createSupportTicket(interaction) {
     embeds: [new EmbedBuilder()
       .setColor(theme.primary)
       .setTitle("Ticket aberto")
-      .setDescription("Descreva sua duvida com detalhes. A IA responde automaticamente ate alguem da equipe assumir.")],
+      .setDescription("Descreva sua duvida com detalhes. A equipe vai te atender por aqui.")],
     components: ticketRows(ticket.id)
   });
 
@@ -2446,60 +2281,6 @@ async function handleTicketButton(interaction, action, ticketId) {
     await interaction.reply({ content: "Ticket sera fechado em 5 segundos.", ephemeral: true });
     setTimeout(() => interaction.channel.delete("Ticket de suporte fechado").catch(() => null), 5000);
   }
-}
-
-function normalizeGeminiModel(model) {
-  const clean = String(model || "").trim().replace(/^models\//i, "");
-  if (!clean || clean.includes("gemini-1.5-flash")) return "gemini-2.0-flash";
-  return clean;
-}
-
-async function generateAiReply(settings, message, question = null) {
-  if (!settings.ai.enabled || !settings.ai.apiKey) return null;
-
-  const faq = (settings.ai.faq || []).map((item) => `Pergunta: ${item.q}\nResposta: ${item.a}`).join("\n\n");
-  const prompt = [
-    "Voce e um atendente de suporte de uma loja Discord.",
-    "Responda em portugues do Brasil, com clareza, sem prometer reembolso se a politica negar.",
-    `Informacoes da loja: ${settings.ai.storeInfo || "Nao informado"}`,
-    `Produtos: ${settings.ai.productInfo || "Nao informado"}`,
-    `Politica: ${settings.ai.policy || "Nao informado"}`,
-    faq ? `FAQ:\n${faq}` : "",
-    `Cliente perguntou: ${question || message.content}`
-  ].filter(Boolean).join("\n\n");
-
-  const model = normalizeGeminiModel(settings.ai.model);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
-  let response;
-
-  try {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${settings.ai.apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    signal: controller.signal,
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 500
-      }
-    })
-    });
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("Gemini demorou demais para responder. Tente de novo ou confira a chave/modelo.");
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(`Gemini falhou: ${response.status} ${errorText.slice(0, 200)}`);
-  }
-
-  const json = await response.json();
-  return json.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim() || null;
 }
 
 async function handleShopButton(interaction, action) {
@@ -3808,10 +3589,10 @@ function cartEmbed(order, product, shop) {
 function productEmbed(product, shop) {
   const fields = getProductFields(product).filter((field) => field.active !== false);
   const fieldsText = fields.length
-    ? fields.slice(0, 8).map((field) => `**${field.name}** - ${brl(field.price)}`).join("\n")
+    ? fields.slice(0, 8).map((field) => `**${field.name}**${Number(field.price) > 0 ? ` - ${brl(field.price)}` : ""}`).join("\n")
     : "Produto unico";
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(theme.success)
     .setTitle(product.name)
     .setDescription(shortText(product.description, "Produto sem descricao."))
@@ -3822,9 +3603,16 @@ function productEmbed(product, shop) {
       { name: "Opcoes", value: fieldsText }
     )
     .setFooter({ text: `${shop.storeName || "Loja de Bots"} • ${product.couponsEnabled ? "Cupons aceitos" : "Sem cupons"}` });
+
+  if (product.imageUrl) embed.setImage(product.imageUrl);
+  return embed;
 }
 
 function productBuyRows(product, shop = {}) {
+  if (getProductFields(product).filter((field) => field.active !== false).length) {
+    return [productFieldSelect(product)];
+  }
+
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -3848,7 +3636,7 @@ function productFieldSelect(product) {
       .setCustomId(`field:select:${product.id}`)
       .setPlaceholder("Escolha uma opcao")
       .addOptions(fields.slice(0, 25).map((field) => ({
-        label: `${field.name} - ${brl(field.price)}`.slice(0, 100),
+        label: `${field.name}${Number(field.price) > 0 ? ` - ${brl(field.price)}` : ""}`.slice(0, 100),
         description: (field.description || "Comprar opcao").slice(0, 100),
         value: field.id
       })))
@@ -3931,8 +3719,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "gerar-pix") await handleGeneratePix(interaction);
       if (interaction.commandName === "carteira") await handleWalletStatsCommand(interaction);
       if (interaction.commandName === "config-pagamento") await handlePaymentConfigCommand(interaction);
-      if (interaction.commandName === "painel-ia") await sendAiPanel(interaction);
-      if (["ia-teste", "teste-ia"].includes(interaction.commandName)) await handleAiTestCommand(interaction);
       if (interaction.commandName === "ticket-painel") await sendTicketPanel(interaction);
       if (interaction.commandName === "blacklist") await handleBlacklistCommand(interaction);
       if (interaction.commandName === "termos") await handleTermsCommand(interaction);
@@ -3995,10 +3781,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleTicketButton(interaction, action, orderId);
         return;
       }
-      if (interaction.customId.startsWith("aicfg:")) {
-        await handleAiButton(interaction, action);
-        return;
-      }
       if (interaction.customId.startsWith("product:")) {
         await handleProductButton(interaction, action, orderId);
         return;
@@ -4035,10 +3817,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleConfigModal(interaction, action);
         return;
       }
-      if (interaction.customId.startsWith("aicfg-modal:")) {
-        await handleAiModal(interaction, action);
-        return;
-      }
       if (action === "proof-modal") await handleProofModal(interaction, orderId);
       if (action === "coupon-modal") await handleCouponModal(interaction, orderId);
     }
@@ -4065,38 +3843,6 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    const ticket = await findTicketByChannel(message.channel.id);
-    const order = ticket ? null : await findOrderByChannel(message.channel.id);
-    const conversation = ticket || order;
-    if (!conversation || conversation.claimedBy || conversation.userId !== message.author.id) return;
-
-    if (!settings.ai.enabled || Number(conversation.aiReplies || 0) >= (settings.ai.maxReplies || 20)) return;
-
-    await message.channel.sendTyping().catch(() => null);
-    let aiErrorHandled = false;
-    const reply = await generateAiReply(settings, message).catch(async (error) => {
-      console.error("Erro na IA:", error);
-      await log(message.guild, new EmbedBuilder()
-        .setColor(theme.danger)
-        .setTitle("Erro na IA")
-        .setDescription(error.message.slice(0, 1000)));
-      await message.reply(`A IA nao conseguiu responder agora. Erro: ${error.message.slice(0, 300)}`).catch(() => null);
-      aiErrorHandled = true;
-      return null;
-    });
-
-    if (!reply) {
-      if (aiErrorHandled) return;
-      await message.reply("A IA recebeu sua mensagem, mas nao retornou texto. Confira a chave e o modelo em `/painel-ia`.").catch(() => null);
-      return;
-    }
-
-    conversation.aiReplies = Number(conversation.aiReplies || 0) + 1;
-    conversation.updatedAt = new Date().toISOString();
-    if (ticket) await saveTicket(conversation);
-    else await saveOrder(conversation);
-
-    await message.reply(reply.slice(0, 1900));
   } catch (error) {
     console.error(error);
   }

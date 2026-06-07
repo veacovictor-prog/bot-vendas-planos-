@@ -1,12 +1,59 @@
 [
   {
-    "id": "bot-vendas",
-    "name": "Bot de Vendas",
-    "price": 49.9,
-    "description": "Bot de vendas Discord com tickets, painel e suporte inicial.",
+    "id": "ups-de-conta",
+    "name": "UPS de Conta",
+    "price": 0,
+    "description": "🌊 Bosses - Rip indra, Katakuri v2 e Barba Negra.\n🛡️ Leviathan - e todos os itens dele.\n⚔️ Todas as faixas do dojo.\n\nSe precisar de outro tipo de item, abre ticket para negociarmos.",
+    "imageUrl": "",
     "deliveryMode": "manual",
     "stock": [],
-    "fields": [],
+    "fields": [
+      {
+        "id": "ilhas",
+        "name": "🌊 Ilhas",
+        "price": 0,
+        "description": "Miragem, Kitsune e Vulcao.",
+        "deliveryMode": "manual",
+        "stock": [],
+        "active": true
+      },
+      {
+        "id": "estilos-de-lutas",
+        "name": "🥋 Estilos de lutas",
+        "price": 0,
+        "description": "Todos os estilos.",
+        "deliveryMode": "manual",
+        "stock": [],
+        "active": true
+      },
+      {
+        "id": "racas-v4",
+        "name": "🧬 Racas v4",
+        "price": 0,
+        "description": "Completa ou transformacao.",
+        "deliveryMode": "manual",
+        "stock": [],
+        "active": true
+      },
+      {
+        "id": "pegamos-racas",
+        "name": "🐉 Pegamos racas",
+        "price": 0,
+        "description": "Ghoul, Cyborg e Draco.",
+        "deliveryMode": "manual",
+        "stock": [],
+        "active": true
+      },
+      {
+        "id": "level-fragmentos",
+        "name": "💎 Level e fragmentos",
+        "price": 0,
+        "description": "Up de level e fragmentos.",
+        "deliveryMode": "manual",
+        "stock": [],
+        "active": true
+      }
+    ],
     "active": true,
     "couponsEnabled": true
   }

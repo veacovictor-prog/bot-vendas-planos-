@@ -18,8 +18,6 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 - `/gerar-pix`: gera uma cobranca Pix manual com copia e cola.
 - `/config-pagamento`: configura Pix, Efi Bank e Mercado Pago por modal no Discord.
 - `/carteira`: mostra recebimentos da carteira integrada.
-- `/painel-ia`: configura IA de atendimento com Gemini.
-- `/ia-teste` ou `/teste-ia`: testa a chave/modelo da IA sem abrir ticket.
 - `/ticket-painel`: publica painel de suporte.
 - `/blacklist`: bloqueia/libera usuarios da loja.
 - `/termos`: configura aceite obrigatorio de termos.
@@ -44,7 +42,7 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 - **Estatisticas:** pedidos totais, aprovados, em analise e faturamento aprovado.
 - **Logs publico/privado:** canal privado para equipe e canal publico para compras aprovadas.
 - **Cargo cliente:** cargo automatico quando a compra e aprovada.
-- **Ticket com IA:** painel de suporte, assumir atendimento, ultima compra e fechamento.
+- **Ticket de suporte:** painel de suporte, assumir atendimento, ultima compra e fechamento.
 - **Campos de produto:** varias opcoes dentro do mesmo produto, cada uma com preco e estoque.
 - **Termos de compra:** aceite obrigatorio antes de abrir carrinho.
 - **Blacklist:** bloqueio de compra e ticket por usuario.
@@ -89,7 +87,6 @@ npm start
 4. Copie o token do bot e guarde para usar no `DISCORD_TOKEN`.
 5. Em **Privileged Gateway Intents**, ative:
   - Server Members Intent
-  - Message Content Intent, necessario para IA responder mensagens em tickets
 
 ### 2. Configurar o Railway
 
@@ -293,40 +290,15 @@ Observacoes importantes:
 - Nunca envie `data/apps.json` com tokens reais para o GitHub.
 - A API do Discord permite alterar nome, avatar e presenca do bot. A bio real do perfil pode nao ser liberada para bots; por isso a bio fica salva como descricao interna e pode ser usada como texto de status.
 
-## Ticket com IA
+## Ticket de suporte
 
-1. Use:
-
-```txt
-/painel-ia
-```
-
-2. Configure:
-
-- API: ativa/desativa, chave Gemini e modelo.
-- Treinamento: informacoes da loja, produtos e politica.
-- Comportamento: limite de respostas e FAQ no formato `pergunta=resposta`.
-
-Modelo recomendado:
-
-```txt
-gemini-2.0-flash
-```
-
-3. Publique o painel:
+Publique o painel:
 
 ```txt
 /ticket-painel
 ```
 
-Teste a chave antes de usar:
-
-```txt
-/ia-teste pergunta:oi, quais produtos voces vendem?
-/teste-ia pergunta:oi, quais produtos voces vendem?
-```
-
-Quando o cliente abrir ticket ou carrinho e mandar mensagem, a IA responde enquanto nenhum staff tiver clicado em `Assumir` no ticket de suporte. Em carrinho de compra ela responde ate o pedido ser aprovado, reprovado ou fechado.
+Quando o cliente abrir ticket, a equipe atende manualmente pelo canal privado.
 
 ### 4. Pegar os IDs para o painel
 
@@ -408,7 +380,6 @@ Quando aparecer `Online como NomeDoBot` nos logs, entre no seu servidor e use:
 /set
 /estatistica
 /gerar-pix
-/painel-ia
 /ticket-painel
 /blacklist
 /termos
@@ -442,14 +413,12 @@ Slash commands registrados em NomeDoServidor
 No portal do Discord Developer, ative:
 
 - Server Members Intent
-- Message Content Intent, se quiser evoluir para leitura de mensagens
 
 Convide o bot com permissoes de:
 
 - Manage Channels
 - Kick Members, se o anti-fake for usado para expulsar contas recentes
 - Manage Roles, se o auto-cargo estiver ativo
-- Message Content Intent, se usar IA em tickets
 - Send Messages
 - Embed Links
 - Use Slash Commands

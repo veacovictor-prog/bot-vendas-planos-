@@ -1,10 +1,10 @@
 [
   {
     "id": "loja-principal",
-    "name": "Loja Principal",
-    "description": "Escolha um produto abaixo para abrir seu carrinho.",
+    "name": "UPS de Conta",
+    "description": "Clique abaixo para ver as opcoes disponiveis.",
     "productIds": [
-      "bot-vendas"
+      "ups-de-conta"
     ],
     "active": true
   }
