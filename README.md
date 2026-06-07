@@ -12,6 +12,7 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 - `/criar campo`: adiciona uma opcao/campo dentro de um produto.
 - `/criar painel`: cria painel com varios produtos.
 - `/criar cupom`: cria cupom de desconto.
+- `/editar produto`: edita nome, preco, descricao, entrega, imagem, status e cupons.
 - `/set produto`: publica um produto no canal atual.
 - `/set painel`: publica um painel com menu de selecao.
 - `/estatistica`: mostra pedidos, aprovados e faturamento.
@@ -377,6 +378,7 @@ Quando aparecer `Online como NomeDoBot` nos logs, entre no seu servidor e use:
 /painel-loja
 /painel-config
 /criar
+/editar
 /set
 /estatistica
 /gerar-pix

@@ -204,6 +204,27 @@ const commands = [
       .addNumberOption((option) => option.setName("desconto").setDescription("Desconto em porcentagem.").setRequired(true))
       .addIntegerOption((option) => option.setName("usos").setDescription("Limite de usos.").setRequired(false))),
   new SlashCommandBuilder()
+    .setName("editar")
+    .setDescription("Edita itens da loja.")
+    .addSubcommand((subcommand) => subcommand
+      .setName("produto")
+      .setDescription("Edita um produto existente.")
+      .addStringOption((option) => option.setName("id").setDescription("ID do produto.").setRequired(true))
+      .addStringOption((option) => option.setName("nome").setDescription("Novo nome do produto.").setRequired(false))
+      .addNumberOption((option) => option.setName("preco").setDescription("Novo preco em reais.").setRequired(false))
+      .addStringOption((option) => option.setName("descricao").setDescription("Nova descricao. Use \\n para quebrar linha.").setRequired(false))
+      .addStringOption((option) => option
+        .setName("entrega")
+        .setDescription("Tipo de entrega.")
+        .setRequired(false)
+        .addChoices(
+          { name: "manual", value: "manual" },
+          { name: "automatica", value: "automatic" }
+        ))
+      .addStringOption((option) => option.setName("imagem").setDescription("URL da imagem/banner do produto.").setRequired(false))
+      .addBooleanOption((option) => option.setName("ativo").setDescription("Produto ativo?").setRequired(false))
+      .addBooleanOption((option) => option.setName("cupons").setDescription("Aceitar cupons?").setRequired(false))),
+  new SlashCommandBuilder()
     .setName("set")
     .setDescription("Publica produto ou painel no canal atual.")
     .addSubcommand((subcommand) => subcommand
@@ -2011,6 +2032,53 @@ async function handleCreateCommand(interaction) {
   }
 }
 
+async function handleEditCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode editar itens da loja.", ephemeral: true });
+    return;
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === "produto") {
+    const products = await getProducts();
+    const id = normalizeId(interaction.options.getString("id"));
+    const index = products.findIndex((item) => item.id === id);
+
+    if (index < 0) {
+      await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+      return;
+    }
+
+    const product = { ...products[index] };
+    const name = interaction.options.getString("nome");
+    const price = interaction.options.getNumber("preco");
+    const description = interaction.options.getString("descricao");
+    const deliveryMode = interaction.options.getString("entrega");
+    const imageUrl = interaction.options.getString("imagem");
+    const active = interaction.options.getBoolean("ativo");
+    const couponsEnabled = interaction.options.getBoolean("cupons");
+
+    if (name !== null) product.name = name;
+    if (price !== null) product.price = price;
+    if (description !== null) product.description = description.replace(/\\n/g, "\n");
+    if (deliveryMode !== null) product.deliveryMode = deliveryMode;
+    if (imageUrl !== null) product.imageUrl = imageUrl;
+    if (active !== null) product.active = active;
+    if (couponsEnabled !== null) product.couponsEnabled = couponsEnabled;
+
+    products[index] = product;
+    await saveProducts(products);
+
+    await interaction.reply({
+      content: `Produto **${product.name}** atualizado.`,
+      embeds: [productEmbed(product, shop)],
+      ephemeral: true
+    });
+  }
+}
+
 async function handleSetCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
@@ -3718,6 +3786,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "botconfig") await sendBotConfigPanel(interaction);
       if (interaction.commandName === "painel-loja") await sendShopPanel(interaction);
       if (interaction.commandName === "criar") await handleCreateCommand(interaction);
+      if (interaction.commandName === "editar") await handleEditCommand(interaction);
       if (interaction.commandName === "set") await handleSetCommand(interaction);
       if (interaction.commandName === "estatistica") await handleStatsCommand(interaction);
       if (interaction.commandName === "gerar-pix") await handleGeneratePix(interaction);
