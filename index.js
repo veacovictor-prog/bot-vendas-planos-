@@ -234,7 +234,21 @@ const commands = [
     .addSubcommand((subcommand) => subcommand
       .setName("painel")
       .setDescription("Publica um painel.")
-      .addStringOption((option) => option.setName("id").setDescription("ID do painel.").setRequired(true))),
+      .addStringOption((option) => option.setName("id").setDescription("ID do painel.").setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName("delay")
+      .setDescription("Publica e agenda repost apagando a mensagem anterior.")
+      .addStringOption((option) => option
+        .setName("tipo")
+        .setDescription("O que sera postado.")
+        .setRequired(true)
+        .addChoices(
+          { name: "produto", value: "product" },
+          { name: "painel", value: "panel" }
+        ))
+      .addStringOption((option) => option.setName("id").setDescription("ID do produto ou painel.").setRequired(true))
+      .addNumberOption((option) => option.setName("horas").setDescription("Delay em horas para apagar e repostar.").setRequired(true))
+      .addBooleanOption((option) => option.setName("mencionar").setDescription("Marcar @here no repost?").setRequired(false))),
   new SlashCommandBuilder()
     .setName("estatistica")
     .setDescription("Mostra estatisticas de vendas."),
@@ -2129,6 +2143,46 @@ async function handleSetCommand(interaction) {
       components: [panelSelect(panel, panelProducts)]
     });
     await interaction.reply({ content: "Painel publicado.", ephemeral: true });
+    return;
+  }
+
+  if (subcommand === "delay") {
+    const type = interaction.options.getString("tipo");
+    const id = normalizeId(interaction.options.getString("id"));
+    const hours = interaction.options.getNumber("horas");
+    const mentionHere = interaction.options.getBoolean("mencionar") === true;
+    const intervalMinutes = Math.max(1, Math.round(hours * 60));
+
+    const message = type === "product"
+      ? await publishProduct(interaction.channel, id, interaction.guildId)
+      : await publishPanel(interaction.channel, id, interaction.guildId);
+
+    if (!message) {
+      await interaction.reply({ content: "Produto ou painel nao encontrado.", ephemeral: true });
+      return;
+    }
+
+    const reposts = await getReposts();
+    const key = `${interaction.guildId}:${interaction.channelId}:delay:${type}:${id}`;
+    const filtered = reposts.filter((item) => item.key !== key);
+    filtered.push({
+      key,
+      guildId: interaction.guildId,
+      channelId: interaction.channelId,
+      messageId: message.id,
+      type,
+      id,
+      mode: "delay",
+      mentionHere,
+      intervalMinutes,
+      nextAt: new Date(Date.now() + intervalMinutes * 60000).toISOString()
+    });
+    await saveReposts(filtered);
+
+    await interaction.reply({
+      content: `Publicado e agendado. A cada ${hours} hora(s), vou apagar e repostar${mentionHere ? " com @here" : ""}.`,
+      ephemeral: true
+    });
   }
 }
 
@@ -2764,16 +2818,15 @@ async function handleProductButton(interaction, action, productId) {
   }
 }
 
-async function publishProduct(channel, productId, guildId) {
+async function publishProduct(channel, productId, guildId, content = null) {
   const shop = await getShopSettings(guildId);
   const products = await getProducts();
   const product = products.find((item) => item.id === normalizeId(productId));
   if (!product) return false;
-  await channel.send({ embeds: [productEmbed(product, shop)], components: productBuyRows(product, shop) });
-  return true;
+  return channel.send({ content, embeds: [productEmbed(product, shop)], components: productBuyRows(product, shop) });
 }
 
-async function publishPanel(channel, panelId, guildId) {
+async function publishPanel(channel, panelId, guildId, content = null) {
   const shop = await getShopSettings(guildId);
   const products = await getProducts();
   const panels = await getPanels();
@@ -2783,8 +2836,7 @@ async function publishPanel(channel, panelId, guildId) {
     .map((productId) => products.find((product) => product.id === productId && product.active))
     .filter(Boolean);
   if (!panelProducts.length) return false;
-  await channel.send({ embeds: [panelEmbed(panel, panelProducts, shop)], components: [panelSelect(panel, panelProducts)] });
-  return true;
+  return channel.send({ content, embeds: [panelEmbed(panel, panelProducts, shop)], components: [panelSelect(panel, panelProducts)] });
 }
 
 async function handleBlacklistCommand(interaction) {
@@ -2974,8 +3026,16 @@ async function processScheduledTasks() {
     if (new Date(repost.nextAt).getTime() > now) continue;
     const channel = await client.channels.fetch(repost.channelId).catch(() => null);
     if (channel?.isTextBased()) {
-      if (repost.type === "product") await publishProduct(channel, repost.id, repost.guildId).catch(() => null);
-      if (repost.type === "panel") await publishPanel(channel, repost.id, repost.guildId).catch(() => null);
+      if (repost.mode === "delay" && repost.messageId) {
+        const oldMessage = await channel.messages.fetch(repost.messageId).catch(() => null);
+        await oldMessage?.delete().catch(() => null);
+      }
+
+      const content = repost.mentionHere ? "@here" : null;
+      const message = repost.type === "product"
+        ? await publishProduct(channel, repost.id, repost.guildId, content).catch(() => null)
+        : await publishPanel(channel, repost.id, repost.guildId, content).catch(() => null);
+      if (message?.id) repost.messageId = message.id;
     }
     repost.nextAt = new Date(Date.now() + repost.intervalMinutes * 60000).toISOString();
     changed = true;
