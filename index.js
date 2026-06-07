@@ -228,8 +228,28 @@ const commands = [
           { name: "automatica", value: "automatic" }
         ))
       .addStringOption((option) => option.setName("imagem").setDescription("URL da imagem/banner do produto.").setRequired(false))
+      .addStringOption((option) => option.setName("estoque").setDescription("Substitui o estoque. Separe itens por |.").setRequired(false))
+      .addBooleanOption((option) => option.setName("limpar-imagem").setDescription("Remover imagem atual?").setRequired(false))
       .addBooleanOption((option) => option.setName("ativo").setDescription("Produto ativo?").setRequired(false))
-      .addBooleanOption((option) => option.setName("cupons").setDescription("Aceitar cupons?").setRequired(false))),
+      .addBooleanOption((option) => option.setName("cupons").setDescription("Aceitar cupons?").setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName("campo")
+      .setDescription("Edita uma opcao/campo de um produto.")
+      .addStringOption((option) => option.setName("produto").setDescription("ID ou nome do produto.").setRequired(true))
+      .addStringOption((option) => option.setName("campo").setDescription("ID ou nome do campo/opcao.").setRequired(true))
+      .addStringOption((option) => option.setName("nome").setDescription("Novo nome da opcao.").setRequired(false))
+      .addNumberOption((option) => option.setName("preco").setDescription("Novo preco em reais.").setRequired(false))
+      .addStringOption((option) => option.setName("descricao").setDescription("Nova descricao. Use \\n para quebrar linha.").setRequired(false))
+      .addStringOption((option) => option
+        .setName("entrega")
+        .setDescription("Tipo de entrega.")
+        .setRequired(false)
+        .addChoices(
+          { name: "manual", value: "manual" },
+          { name: "automatica", value: "automatic" }
+        ))
+      .addStringOption((option) => option.setName("estoque").setDescription("Substitui o estoque da opcao. Separe por |.").setRequired(false))
+      .addBooleanOption((option) => option.setName("ativo").setDescription("Opcao ativa?").setRequired(false))),
   new SlashCommandBuilder()
     .setName("set")
     .setDescription("Publica produto ou painel no canal atual.")
@@ -1760,36 +1780,96 @@ async function handleEditCommand(interaction) {
 
   if (subcommand === "produto") {
     const products = await getProducts();
-    const id = normalizeId(interaction.options.getString("id"));
-    const index = products.findIndex((item) => item.id === id);
+    const productRef = interaction.options.getString("id");
+    const index = products.findIndex((item) => item.id === normalizeId(productRef) || normalizeId(item.name || "") === normalizeId(productRef));
 
     if (index < 0) {
-      await interaction.reply({ content: "Produto nao encontrado.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: `Produto nao encontrado.\n\nProdutos disponiveis:\n${idsText(products)}`, flags: MessageFlags.Ephemeral });
       return;
     }
 
     const product = { ...products[index] };
+    const changes = [];
     const name = interaction.options.getString("nome");
     const price = interaction.options.getNumber("preco");
     const description = interaction.options.getString("descricao");
     const deliveryMode = interaction.options.getString("entrega");
     const imageUrl = interaction.options.getString("imagem");
+    const stockText = interaction.options.getString("estoque");
+    const clearImage = interaction.options.getBoolean("limpar-imagem");
     const active = interaction.options.getBoolean("ativo");
     const couponsEnabled = interaction.options.getBoolean("cupons");
 
-    if (name !== null) product.name = name;
-    if (price !== null) product.price = price;
-    if (description !== null) product.description = description.replace(/\\n/g, "\n");
-    if (deliveryMode !== null) product.deliveryMode = deliveryMode;
-    if (imageUrl !== null) product.imageUrl = imageUrl;
-    if (active !== null) product.active = active;
-    if (couponsEnabled !== null) product.couponsEnabled = couponsEnabled;
+    if (name !== null) { product.name = name; changes.push("nome"); }
+    if (price !== null) { product.price = price; changes.push("preco"); }
+    if (description !== null) { product.description = description.replace(/\\n/g, "\n"); changes.push("descricao"); }
+    if (deliveryMode !== null) { product.deliveryMode = deliveryMode; changes.push("entrega"); }
+    if (imageUrl !== null) { product.imageUrl = imageUrl; changes.push("imagem"); }
+    if (clearImage === true) { product.imageUrl = ""; changes.push("imagem removida"); }
+    if (stockText !== null) {
+      product.stock = stockText.split("|").map((item) => item.trim()).filter(Boolean);
+      changes.push(`estoque (${product.stock.length})`);
+    }
+    if (active !== null) { product.active = active; changes.push(active ? "ativado" : "desativado"); }
+    if (couponsEnabled !== null) { product.couponsEnabled = couponsEnabled; changes.push(couponsEnabled ? "cupons ligados" : "cupons desligados"); }
 
     products[index] = product;
     await saveProducts(products);
 
     await interaction.reply({
-      content: `Produto **${product.name}** atualizado.`,
+      content: `Produto **${product.name}** atualizado.${changes.length ? `\nAlterado: ${changes.join(", ")}.` : "\nNada foi alterado."}`,
+      embeds: [productEmbed(product, shop)],
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  if (subcommand === "campo") {
+    const products = await getProducts();
+    const product = findByIdOrName(products, interaction.options.getString("produto"));
+    const productIndex = products.findIndex((item) => item.id === product?.id);
+
+    if (!product || productIndex < 0) {
+      await interaction.reply({ content: `Produto nao encontrado.\n\nProdutos disponiveis:\n${idsText(products)}`, flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    product.fields = getProductFields(product);
+    const fieldRef = interaction.options.getString("campo");
+    const fieldIndex = product.fields.findIndex((field) => field.id === normalizeId(fieldRef) || normalizeId(field.name || "") === normalizeId(fieldRef));
+    if (fieldIndex < 0) {
+      await interaction.reply({
+        content: `Campo nao encontrado.\n\nCampos de **${product.name}**:\n${idsText(product.fields)}`,
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const field = { ...product.fields[fieldIndex] };
+    const changes = [];
+    const name = interaction.options.getString("nome");
+    const price = interaction.options.getNumber("preco");
+    const description = interaction.options.getString("descricao");
+    const deliveryMode = interaction.options.getString("entrega");
+    const stockText = interaction.options.getString("estoque");
+    const active = interaction.options.getBoolean("ativo");
+
+    if (name !== null) { field.name = name; changes.push("nome"); }
+    if (price !== null) { field.price = price; changes.push("preco"); }
+    if (description !== null) { field.description = description.replace(/\\n/g, "\n"); changes.push("descricao"); }
+    if (deliveryMode !== null) { field.deliveryMode = deliveryMode; changes.push("entrega"); }
+    if (stockText !== null) {
+      field.stock = stockText.split("|").map((item) => item.trim()).filter(Boolean);
+      changes.push(`estoque (${field.stock.length})`);
+    }
+    if (active !== null) { field.active = active; changes.push(active ? "ativado" : "desativado"); }
+
+    product.fields[fieldIndex] = field;
+    products[productIndex] = product;
+    await saveProducts(products);
+
+    await interaction.reply({
+      content: `Campo **${field.name}** atualizado em **${product.name}**.${changes.length ? `\nAlterado: ${changes.join(", ")}.` : "\nNada foi alterado."}`,
       embeds: [productEmbed(product, shop)],
       flags: MessageFlags.Ephemeral
     });
@@ -3447,7 +3527,10 @@ function cartEmbed(order, product, shop) {
 function productEmbed(product, shop) {
   const fields = getProductFields(product).filter((field) => field.active !== false);
   const fieldsText = fields.length
-    ? fields.slice(0, 8).map((field) => `**${field.name}**${Number(field.price) > 0 ? ` - ${brl(field.price)}` : ""}`).join("\n")
+    ? fields.slice(0, 12).map((field) => {
+      const stock = field.deliveryMode === "automatic" ? ` • ${field.stock?.length || 0} em estoque` : "";
+      return `**${field.name}**${Number(field.price) > 0 ? ` - ${brl(field.price)}` : ""}${stock}`;
+    }).join("\n")
     : "Produto unico";
 
   const embed = new EmbedBuilder()
@@ -3458,6 +3541,7 @@ function productEmbed(product, shop) {
       { name: "Preco", value: brl(product.price), inline: true },
       { name: "Estoque", value: productStockText(product), inline: true },
       { name: "Entrega", value: product.deliveryMode === "automatic" ? "Automatica" : "Manual", inline: true },
+      { name: "Status", value: product.active === false ? "Desativado" : "Ativo", inline: true },
       { name: "Opcoes", value: fieldsText }
     )
     .setFooter({ text: `${shop.storeName || "Loja Blox Fruits"} • ${product.couponsEnabled ? "Cupons aceitos" : "Sem cupons"}` });

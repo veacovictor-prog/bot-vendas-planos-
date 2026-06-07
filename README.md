@@ -14,7 +14,8 @@ Bot de Discord para vender contas, ups e servicos de Blox Fruits. Ele cria paine
 - `/criar campo`: adiciona uma opcao/campo dentro de um produto.
 - `/criar painel`: cria painel com varios produtos.
 - `/criar cupom`: cria cupom de desconto.
-- `/editar produto`: edita nome, preco, descricao, entrega, imagem, status e cupons.
+- `/editar produto`: edita nome, preco, descricao, entrega, imagem, estoque, status e cupons.
+- `/editar campo`: edita uma opcao/campo de produto.
 - `/set produto`: publica um produto no canal atual.
 - `/set painel`: publica um painel com menu de selecao.
 - `/set listar`: mostra IDs de produtos e paineis.
@@ -139,7 +140,7 @@ Depois use:
 ### Criar produto manual
 
 ```txt
-/criar produto id:bot-personalizado nome:Bot Personalizado preco:49.90 descricao:Bot sob encomenda entrega:manual
+/criar produto id:shizu nome:SHIZU preco:2.50 descricao:PEGAR SHIZU entrega:manual
 ```
 
 ### Criar produto automatico com estoque
@@ -147,7 +148,7 @@ Depois use:
 Use `|` para separar os itens do estoque:
 
 ```txt
-/criar produto id:template-vendas nome:Template Vendas preco:29.90 descricao:Entrega automatica entrega:automatica estoque:link1|link2|link3
+/criar produto id:conta-pronta nome:Conta Pronta preco:29.90 descricao:Entrega automatica entrega:automatica estoque:login1:senha1|login2:senha2
 ```
 
 Quando o staff aprovar o pagamento, o bot entrega um item do estoque e remove esse item automaticamente.
@@ -155,8 +156,8 @@ Quando o staff aprovar o pagamento, o bot entrega um item do estoque e remove es
 ### Criar campos/opcoes dentro do produto
 
 ```txt
-/criar campo produto:nitro id:mensal nome:Nitro Mensal preco:19.90 descricao:1 mes estoque:codigo1|codigo2
-/criar campo produto:nitro id:anual nome:Nitro Anual preco:149.90 descricao:12 meses estoque:codigo3|codigo4
+/criar campo produto:ups-de-conta id:ilhas nome:Ilhas preco:10 descricao:Miragem, Kitsune e Vulcao
+/criar campo produto:ups-de-conta id:racas-v4 nome:Raças v4 preco:15 descricao:Completa ou transformacao
 ```
 
 Quando o produto tiver campos, o cliente clica em comprar e escolhe a opcao no menu.
@@ -170,13 +171,21 @@ Quando o produto tiver campos, o cliente clica em comprar e escolhe a opcao no m
 ### Criar painel com varios produtos
 
 ```txt
-/criar painel id:loja-principal nome:Loja Principal produtos:bot-personalizado,template-vendas descricao:Escolha seu bot abaixo
+/criar painel id:loja-principal nome:Loja Principal produtos:shizu,conta-pronta descricao:Escolha uma opcao abaixo
+```
+
+### Editar produto ou campo
+
+```txt
+/editar produto id:shizu preco:3 imagem:https://link/banner.png
+/editar produto id:conta-pronta estoque:login3:senha3|login4:senha4
+/editar campo produto:ups-de-conta campo:ilhas preco:12 descricao:Miragem, Kitsune e Vulcao
 ```
 
 ### Publicar produto ou painel
 
 ```txt
-/set produto id:bot-personalizado
+/set produto id:shizu
 /set painel id:loja-principal
 /set listar
 /set delay tipo:produto id:ups-de-conta horas:3 mencionar:true
@@ -246,7 +255,7 @@ O bot nao faz saque bancario automatico. Ele confirma e registra o pagamento; o 
 ### Sorteio
 
 ```txt
-/sorteio criar premio:Nitro minutos:60 vencedores:1
+/sorteio criar premio:Fragmentos minutos:60 vencedores:1
 /sorteio encerrar id:ID_DO_SORTEIO
 ```
 
