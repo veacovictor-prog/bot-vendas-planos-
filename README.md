@@ -15,6 +15,7 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 - `/editar produto`: edita nome, preco, descricao, entrega, imagem, status e cupons.
 - `/set produto`: publica um produto no canal atual.
 - `/set painel`: publica um painel com menu de selecao.
+- `/set listar`: mostra IDs de produtos e paineis.
 - `/set delay`: publica produto/painel e agenda apagar/repostar depois de X horas.
 - `/estatistica`: mostra pedidos, aprovados e faturamento.
 - `/gerar-pix`: gera uma cobranca Pix manual com copia e cola.
@@ -177,6 +178,7 @@ Quando o produto tiver campos, o cliente clica em comprar e escolhe a opcao no m
 ```txt
 /set produto id:bot-personalizado
 /set painel id:loja-principal
+/set listar
 /set delay tipo:produto id:ups-de-conta horas:3 mencionar:true
 ```
 

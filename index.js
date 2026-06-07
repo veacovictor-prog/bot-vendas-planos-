@@ -236,6 +236,9 @@ const commands = [
       .setDescription("Publica um painel.")
       .addStringOption((option) => option.setName("id").setDescription("ID do painel.").setRequired(true)))
     .addSubcommand((subcommand) => subcommand
+      .setName("listar")
+      .setDescription("Mostra os IDs dos produtos e paineis cadastrados."))
+    .addSubcommand((subcommand) => subcommand
       .setName("delay")
       .setDescription("Publica e agenda repost apagando a mensagem anterior.")
       .addStringOption((option) => option
@@ -722,6 +725,19 @@ function normalizeId(value) {
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-_]/g, "")
     .slice(0, 60);
+}
+
+function findByIdOrName(items, value) {
+  const id = normalizeId(value);
+  return items.find((item) => item.id === id || normalizeId(item.name || "") === id);
+}
+
+function idsText(items) {
+  if (!items.length) return "Nenhum cadastrado.";
+  return items
+    .slice(0, 20)
+    .map((item) => `\`${item.id}\` - ${item.name || item.id}`)
+    .join("\n");
 }
 
 function productStockText(product) {
@@ -2104,10 +2120,9 @@ async function handleSetCommand(interaction) {
 
   if (subcommand === "produto") {
     const products = await getProducts();
-    const id = normalizeId(interaction.options.getString("id"));
-    const product = products.find((item) => item.id === id);
+    const product = findByIdOrName(products, interaction.options.getString("id"));
     if (!product) {
-      await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: `Produto nao encontrado.\n\nProdutos disponiveis:\n${idsText(products)}`, ephemeral: true });
       return;
     }
 
@@ -2122,10 +2137,9 @@ async function handleSetCommand(interaction) {
   if (subcommand === "painel") {
     const products = await getProducts();
     const panels = await getPanels();
-    const id = normalizeId(interaction.options.getString("id"));
-    const panel = panels.find((item) => item.id === id);
+    const panel = findByIdOrName(panels, interaction.options.getString("id"));
     if (!panel) {
-      await interaction.reply({ content: "Painel nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: `Painel nao encontrado.\n\nPaineis disponiveis:\n${idsText(panels)}`, ephemeral: true });
       return;
     }
 
@@ -2146,12 +2160,36 @@ async function handleSetCommand(interaction) {
     return;
   }
 
+  if (subcommand === "listar") {
+    const products = await getProducts();
+    const panels = await getPanels();
+    await interaction.reply({
+      content: `**Produtos:**\n${idsText(products)}\n\n**Paineis:**\n${idsText(panels)}`,
+      ephemeral: true
+    });
+    return;
+  }
+
   if (subcommand === "delay") {
     const type = interaction.options.getString("tipo");
-    const id = normalizeId(interaction.options.getString("id"));
+    const rawId = interaction.options.getString("id");
+    const products = await getProducts();
+    const panels = await getPanels();
+    const target = type === "product" ? findByIdOrName(products, rawId) : findByIdOrName(panels, rawId);
+    const id = target?.id || normalizeId(rawId);
     const hours = interaction.options.getNumber("horas");
     const mentionHere = interaction.options.getBoolean("mencionar") === true;
     const intervalMinutes = Math.max(1, Math.round(hours * 60));
+
+    if (!target) {
+      await interaction.reply({
+        content: type === "product"
+          ? `Produto nao encontrado.\n\nProdutos disponiveis:\n${idsText(products)}`
+          : `Painel nao encontrado.\n\nPaineis disponiveis:\n${idsText(panels)}`,
+        ephemeral: true
+      });
+      return;
+    }
 
     const message = type === "product"
       ? await publishProduct(interaction.channel, id, interaction.guildId)
@@ -2821,7 +2859,7 @@ async function handleProductButton(interaction, action, productId) {
 async function publishProduct(channel, productId, guildId, content = null) {
   const shop = await getShopSettings(guildId);
   const products = await getProducts();
-  const product = products.find((item) => item.id === normalizeId(productId));
+  const product = findByIdOrName(products, productId);
   if (!product) return false;
   return channel.send({ content, embeds: [productEmbed(product, shop)], components: productBuyRows(product, shop) });
 }
@@ -2830,7 +2868,7 @@ async function publishPanel(channel, panelId, guildId, content = null) {
   const shop = await getShopSettings(guildId);
   const products = await getProducts();
   const panels = await getPanels();
-  const panel = panels.find((item) => item.id === normalizeId(panelId));
+  const panel = findByIdOrName(panels, panelId);
   if (!panel) return false;
   const panelProducts = panel.productIds
     .map((productId) => products.find((product) => product.id === productId && product.active))
