@@ -3712,14 +3712,10 @@ function productFieldSelect(product) {
 }
 
 function panelEmbed(panel, products, shop) {
-  const lines = products.map((product) => {
-    return `**${product.name}**\n${brl(product.price)} - ${productStockText(product)}\n${product.description || "Sem descricao."}`;
-  });
-
   return new EmbedBuilder()
     .setColor(theme.purple)
     .setTitle(panel.name)
-    .setDescription(`${panel.description || "Escolha um produto abaixo."}\n\n${lines.join("\n\n")}`)
+    .setDescription(panel.description || "Escolha um produto abaixo.")
     .setFooter({ text: `${shop.storeName || "Loja de Bots"} • selecione no menu abaixo` });
 }
 
@@ -3729,7 +3725,7 @@ function panelSelect(panel, products) {
       .setCustomId(`panel:select:${panel.id}`)
       .setPlaceholder("Selecione um produto")
       .addOptions(products.slice(0, 25).map((product) => ({
-        label: `${product.name} - ${brl(product.price)}`.slice(0, 100),
+        label: `${product.name}${Number(product.price) > 0 ? ` - ${brl(product.price)}` : ""}`.slice(0, 100),
         description: (product.description || "Comprar produto").slice(0, 100),
         value: product.id
       })))
