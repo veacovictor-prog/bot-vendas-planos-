@@ -3683,18 +3683,22 @@ client.once(Events.ClientReady, async () => {
   await processScheduledTasks().catch((error) => console.error("Erro nas tarefas agendadas:", error));
   await startManagedApps().catch((error) => console.error("Erro ao ligar apps gerenciados:", error));
 
-  try {
-    if (config.guildId) {
+  if (config.guildId) {
+    try {
       const guild = await client.guilds.fetch(config.guildId);
       await registerCommandsForGuild(guild);
       return;
+    } catch (error) {
+      console.error(`Nao consegui usar GUILD_ID=${config.guildId}. Vou registrar nos servidores em que o bot esta.`, error.message);
     }
+  }
 
-    for (const guild of client.guilds.cache.values()) {
+  for (const guild of client.guilds.cache.values()) {
+    try {
       await registerCommandsForGuild(guild);
+    } catch (error) {
+      console.error(`Erro ao registrar slash commands em ${guild.name} (${guild.id}):`, error.message);
     }
-  } catch (error) {
-    console.error("Erro ao registrar slash commands:", error);
   }
 });
 
