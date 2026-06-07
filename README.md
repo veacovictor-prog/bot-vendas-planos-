@@ -5,6 +5,8 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 ## Funcoes
 
 - `/setup-loja`: envia o painel principal de produtos no canal atual.
+- `/ajuda`: mostra os comandos principais da loja.
+- `/diagnostico`: verifica produtos, paineis, pagamento, logs e tickets.
 - `/painel-loja`: configura nome da loja, Pix, canal de logs, categoria de tickets e cargo staff.
 - `/painel-config`: envia o painel para configurar boas-vindas, auto-cargo e anti-fake.
 - `/botconfig`: abre o painel central estilo Promisse com loja, tickets, protecao, sorteios, apps e automacoes.

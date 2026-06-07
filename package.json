@@ -1,7 +1,7 @@
 {
   "name": "loja-bots-discord",
   "version": "1.0.0",
-  "description": "Bot de Discord para vender bots em planos com tickets, Pix manual e entrega por admin.",
+  "description": "Bot profissional de loja Discord com produtos, tickets, Pix, paineis e automacoes.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

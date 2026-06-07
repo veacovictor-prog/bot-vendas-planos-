@@ -9,6 +9,7 @@ const {
   EmbedBuilder,
   Events,
   GatewayIntentBits,
+  MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
   REST,
@@ -159,6 +160,12 @@ const commands = [
   new SlashCommandBuilder()
     .setName("botconfig")
     .setDescription("Abre o painel central de configuracao estilo Promisse."),
+  new SlashCommandBuilder()
+    .setName("ajuda")
+    .setDescription("Mostra os comandos principais da loja."),
+  new SlashCommandBuilder()
+    .setName("diagnostico")
+    .setDescription("Verifica configuracoes importantes da loja."),
   new SlashCommandBuilder()
     .setName("painel-loja")
     .setDescription("Envia o painel para configurar a loja, Pix, logs e tickets."),
@@ -1085,25 +1092,74 @@ async function sendBotConfigPanel(interaction, edit = false) {
   const shop = await getShopSettings(interaction.guildId);
   const settings = await getGuildSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode abrir o botconfig.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode abrir o botconfig.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const payload = {
     embeds: [botConfigEmbed(shop, settings)],
     components: botConfigRows(shop),
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   };
 
   if (edit) await interaction.update(payload);
   else await interaction.reply(payload);
 }
 
+async function handleHelpCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  const embed = new EmbedBuilder()
+    .setColor(theme.primary)
+    .setTitle(`${shop.storeName || "Loja"} - comandos`)
+    .setDescription("Atalhos principais para operar a loja.")
+    .addFields(
+      { name: "Publicar", value: "`/setup-loja`\n`/set produto`\n`/set painel`\n`/set delay`\n`/set listar`", inline: true },
+      { name: "Cadastrar", value: "`/criar produto`\n`/criar campo`\n`/criar painel`\n`/editar produto`", inline: true },
+      { name: "Gestao", value: "`/botconfig`\n`/painel-loja`\n`/config-pagamento`\n`/estatistica`\n`/diagnostico`", inline: true },
+      { name: "Suporte", value: "`/ticket-painel`\n`/blacklist`\n`/termos`\n`/avaliar`", inline: true }
+    )
+    .setFooter({ text: "Use /diagnostico para conferir se a loja esta pronta." });
+
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+}
+
+async function handleDiagnosticCommand(interaction) {
+  const shop = await getShopSettings(interaction.guildId);
+  if (!isStaff(interaction.member, shop)) {
+    await interaction.reply({ content: "Apenas a equipe pode ver o diagnostico.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const products = await getProducts();
+  const panels = await getPanels();
+  const activeProducts = products.filter((product) => product.active !== false);
+  const activePanels = panels.filter((panel) => panel.active !== false);
+  const paymentReady = Boolean(shop.pixKey || shop.mercadoPagoAccessToken || shop.efiClientId);
+  const checks = [
+    ["Produtos ativos", activeProducts.length ? `${activeProducts.length} produto(s)` : "Nenhum produto ativo"],
+    ["Paineis ativos", activePanels.length ? `${activePanels.length} painel(is)` : "Nenhum painel ativo"],
+    ["Pagamento", paymentReady ? paymentMethodsText(shop) : "Pix/gateway nao configurado"],
+    ["Logs", shop.logChannelId ? `<#${shop.logChannelId}>` : "Canal privado nao configurado"],
+    ["Tickets", shop.ticketCategoryId ? "Categoria configurada" : "Sem categoria definida"],
+    ["Cargo staff", shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Usando permissao Manage Server"]
+  ];
+
+  const missing = checks.filter(([, value]) => /Nenhum|nao configurado|Sem /.test(value));
+  const embed = new EmbedBuilder()
+    .setColor(missing.length ? theme.warning : theme.success)
+    .setTitle("Diagnostico da loja")
+    .setDescription(missing.length ? "Alguns pontos ainda merecem atencao." : "Tudo essencial parece pronto.")
+    .addFields(checks.map(([name, value]) => ({ name, value, inline: true })))
+    .setFooter({ text: "Dica: use /painel-loja e /set listar para ajustar rapido." });
+
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+}
+
 async function handleBotConfigSection(interaction, section) {
   const shop = await getShopSettings(interaction.guildId);
   const settings = await getGuildSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode alterar o painel.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode alterar o painel.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -1392,7 +1448,7 @@ async function sendAppsPanel(interaction) {
   await interaction.reply({
     embeds: [appPanelEmbed(userApps(apps, interaction, shop), access)],
     components: access ? appRows(shop) : [],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }
 
@@ -1474,13 +1530,13 @@ function showAppModal(interaction, action) {
 async function handleAppsButton(interaction, action) {
   const shop = await getShopSettings(interaction.guildId);
   if (!(await hasAppAccess(interaction, shop))) {
-    await interaction.reply({ content: "Voce precisa ter uma compra aprovada ou cargo cliente para usar /apps.", ephemeral: true });
+    await interaction.reply({ content: "Voce precisa ter uma compra aprovada ou cargo cliente para usar /apps.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (action === "list") {
     const apps = await getApps();
-    await interaction.reply({ embeds: [appListEmbed(userApps(apps, interaction, shop))], ephemeral: true });
+    await interaction.reply({ embeds: [appListEmbed(userApps(apps, interaction, shop))], flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -1496,14 +1552,14 @@ function modalValue(interaction, name) {
 async function handleAppsModal(interaction, action) {
   const shop = await getShopSettings(interaction.guildId);
   if (!(await hasAppAccess(interaction, shop))) {
-    await interaction.reply({ content: "Voce precisa ter uma compra aprovada para gerenciar apps.", ephemeral: true });
+    await interaction.reply({ content: "Voce precisa ter uma compra aprovada para gerenciar apps.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const apps = await getApps();
 
   if (action === "add") {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const token = modalValue(interaction, "token");
     const username = modalValue(interaction, "username").slice(0, 32);
     const avatarUrl = modalValue(interaction, "avatarUrl");
@@ -1552,7 +1608,7 @@ async function handleAppsModal(interaction, action) {
   const index = apps.findIndex((app) => app.guildId === interaction.guildId && app.id === appId);
   const app = apps[index];
   if (!app || (app.ownerId !== interaction.user.id && !isStaff(interaction.member, shop))) {
-    await interaction.reply({ content: "Bot nao encontrado nos seus apps.", ephemeral: true });
+    await interaction.reply({ content: "Bot nao encontrado nos seus apps.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -1560,12 +1616,12 @@ async function handleAppsModal(interaction, action) {
     apps.splice(index, 1);
     await saveApps(apps);
     await stopManagedApp(app.id);
-    await interaction.reply({ content: `Bot \`${app.id}\` removido e desligado.`, ephemeral: true });
+    await interaction.reply({ content: `Bot \`${app.id}\` removido e desligado.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (action === "config") {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const username = modalValue(interaction, "username").slice(0, 32);
     const avatarUrl = modalValue(interaction, "avatarUrl");
     const statusText = modalValue(interaction, "statusText").slice(0, 128);
@@ -1828,13 +1884,13 @@ function isAutoPaymentApproved(payment, provider) {
 async function createProductTicket(interaction, product, field = null, acceptedTerms = false) {
   const shop = await getShopSettings(interaction.guildId);
   if (!shop.salesEnabled) {
-    await interaction.reply({ content: "As vendas estao desligadas no momento.", ephemeral: true });
+    await interaction.reply({ content: "As vendas estao desligadas no momento.", flags: MessageFlags.Ephemeral });
     return;
   }
   const item = field || { ...product, productId: product.id, productName: product.name, fieldId: null };
 
   if (isBlacklisted(shop, interaction.user.id)) {
-    await interaction.reply({ content: "Voce esta bloqueado de comprar nesta loja.", ephemeral: true });
+    await interaction.reply({ content: "Voce esta bloqueado de comprar nesta loja.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -1852,18 +1908,18 @@ async function createProductTicket(interaction, product, field = null, acceptedT
           .setLabel("Aceito os termos")
           .setStyle(ButtonStyle.Secondary)
       )],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
 
   if (!product.active) {
-    await interaction.reply({ content: "Este produto esta desativado.", ephemeral: true });
+    await interaction.reply({ content: "Este produto esta desativado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (item.deliveryMode === "automatic" && (!item.stock || item.stock.length <= 0)) {
-    await interaction.reply({ content: "Este produto esta sem estoque no momento.", ephemeral: true });
+    await interaction.reply({ content: "Este produto esta sem estoque no momento.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -1926,19 +1982,19 @@ async function createProductTicket(interaction, product, field = null, acceptedT
     .setTitle("Novo carrinho")
     .setDescription(`Carrinho **${order.id}** criado por <@${order.userId}> para **${item.name || product.name}**.`));
 
-  await interaction.reply({ content: `Seu carrinho foi criado: ${channel}`, ephemeral: true });
+  await interaction.reply({ content: `Seu carrinho foi criado: ${channel}`, flags: MessageFlags.Ephemeral });
 }
 
 async function sendStorePanel(interaction) {
   const panels = await getPanels();
   const panel = panels.find((item) => item.id === "loja-principal") || panels.find((item) => item.active !== false);
   if (!panel) {
-    await interaction.reply({ content: "Nenhum painel de produtos foi cadastrado. Use `/criar painel`.", ephemeral: true });
+    await interaction.reply({ content: "Nenhum painel de produtos foi cadastrado. Use `/criar painel`.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   await publishPanel(interaction.channel, panel.id, interaction.guildId);
-  await interaction.reply({ content: "Painel de produtos enviado.", ephemeral: true });
+  await interaction.reply({ content: "Painel de produtos enviado.", flags: MessageFlags.Ephemeral });
 }
 
 async function sendConfigPanel(interaction) {
@@ -1947,7 +2003,7 @@ async function sendConfigPanel(interaction) {
     embeds: [configPanelEmbed(settings)],
     components: configRows()
   });
-  await interaction.reply({ content: "Painel de configuracao enviado.", ephemeral: true });
+  await interaction.reply({ content: "Painel de configuracao enviado.", flags: MessageFlags.Ephemeral });
 }
 
 async function sendShopPanel(interaction) {
@@ -1956,13 +2012,13 @@ async function sendShopPanel(interaction) {
     embeds: [shopPanelEmbed(shop)],
     components: shopRows(shop)
   });
-  await interaction.reply({ content: "Painel da loja enviado.", ephemeral: true });
+  await interaction.reply({ content: "Painel da loja enviado.", flags: MessageFlags.Ephemeral });
 }
 
 async function handleCreateCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode criar itens da loja.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode criar itens da loja.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -1991,7 +2047,7 @@ async function handleCreateCommand(interaction) {
     await interaction.reply({
       content: `Produto **${product.name}** salvo com ID \`${product.id}\`. Use \`/set produto id:${product.id}\`.`,
       embeds: [productEmbed(product, shop)],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -2001,7 +2057,7 @@ async function handleCreateCommand(interaction) {
     const productId = normalizeId(interaction.options.getString("produto"));
     const productIndex = products.findIndex((item) => item.id === productId);
     if (productIndex < 0) {
-      await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Produto nao encontrado.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -2030,7 +2086,7 @@ async function handleCreateCommand(interaction) {
     await interaction.reply({
       content: `Campo **${field.name}** salvo no produto **${product.name}**.`,
       embeds: [productEmbed(product, shop)],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -2057,7 +2113,7 @@ async function handleCreateCommand(interaction) {
     else panels.push(panel);
     await savePanels(panels);
 
-    await interaction.reply({ content: `Painel **${panel.name}** salvo. Use \`/set painel id:${panel.id}\`.`, ephemeral: true });
+    await interaction.reply({ content: `Painel **${panel.name}** salvo. Use \`/set painel id:${panel.id}\`.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2077,14 +2133,14 @@ async function handleCreateCommand(interaction) {
     else coupons.push(coupon);
     await saveCoupons(coupons);
 
-    await interaction.reply({ content: `Cupom **${code}** salvo com ${coupon.discountPercent}% de desconto.`, ephemeral: true });
+    await interaction.reply({ content: `Cupom **${code}** salvo com ${coupon.discountPercent}% de desconto.`, flags: MessageFlags.Ephemeral });
   }
 }
 
 async function handleEditCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode editar itens da loja.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode editar itens da loja.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2096,7 +2152,7 @@ async function handleEditCommand(interaction) {
     const index = products.findIndex((item) => item.id === id);
 
     if (index < 0) {
-      await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Produto nao encontrado.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -2123,7 +2179,7 @@ async function handleEditCommand(interaction) {
     await interaction.reply({
       content: `Produto **${product.name}** atualizado.`,
       embeds: [productEmbed(product, shop)],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 }
@@ -2131,7 +2187,7 @@ async function handleEditCommand(interaction) {
 async function handleSetCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode publicar itens da loja.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode publicar itens da loja.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2141,7 +2197,7 @@ async function handleSetCommand(interaction) {
     const products = await getProducts();
     const product = findByIdOrName(products, interaction.options.getString("id"));
     if (!product) {
-      await interaction.reply({ content: `Produto nao encontrado.\n\nProdutos disponiveis:\n${idsText(products)}`, ephemeral: true });
+      await interaction.reply({ content: `Produto nao encontrado.\n\nProdutos disponiveis:\n${idsText(products)}`, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -2149,7 +2205,7 @@ async function handleSetCommand(interaction) {
       embeds: [productEmbed(product, shop)],
       components: productBuyRows(product, shop)
     });
-    await interaction.reply({ content: "Produto publicado.", ephemeral: true });
+    await interaction.reply({ content: "Produto publicado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2158,7 +2214,7 @@ async function handleSetCommand(interaction) {
     const panels = await getPanels();
     const panel = findByIdOrName(panels, interaction.options.getString("id"));
     if (!panel) {
-      await interaction.reply({ content: `Painel nao encontrado.\n\nPaineis disponiveis:\n${idsText(panels)}`, ephemeral: true });
+      await interaction.reply({ content: `Painel nao encontrado.\n\nPaineis disponiveis:\n${idsText(panels)}`, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -2168,7 +2224,7 @@ async function handleSetCommand(interaction) {
       const missing = missingPanelProducts(panel, products);
       await interaction.reply({
         content: `Nenhum produto ativo neste painel.${missing ? `\nProdutos nao encontrados no painel: ${missing}` : ""}\n\nUse \`/set listar\` para ver os IDs corretos.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -2177,7 +2233,7 @@ async function handleSetCommand(interaction) {
       embeds: [panelEmbed(panel, resolvedProducts, shop)],
       components: [panelSelect(panel, resolvedProducts)]
     });
-    await interaction.reply({ content: "Painel publicado.", ephemeral: true });
+    await interaction.reply({ content: "Painel publicado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2186,7 +2242,7 @@ async function handleSetCommand(interaction) {
     const panels = await getPanels();
     await interaction.reply({
       content: `**Produtos:**\n${idsText(products)}\n\n**Paineis:**\n${idsText(panels)}`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -2207,7 +2263,7 @@ async function handleSetCommand(interaction) {
         content: type === "product"
           ? `Produto nao encontrado.\n\nProdutos disponiveis:\n${idsText(products)}`
           : `Painel nao encontrado.\n\nPaineis disponiveis:\n${idsText(panels)}`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -2221,7 +2277,7 @@ async function handleSetCommand(interaction) {
         content: type === "panel"
           ? `Painel encontrado, mas nenhum produto ativo dele foi encontrado.\n\nUse \`/set listar\` e recrie o painel com os IDs certos dos produtos.`
           : "Produto encontrado, mas nao consegui publicar.",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -2245,7 +2301,7 @@ async function handleSetCommand(interaction) {
 
     await interaction.reply({
       content: `Publicado e agendado. A cada ${hours} hora(s), vou apagar e repostar${mentionHere ? " com @here" : ""}.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 }
@@ -2253,7 +2309,7 @@ async function handleSetCommand(interaction) {
 async function handleStatsCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode ver estatisticas.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode ver estatisticas.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2273,7 +2329,7 @@ async function handleStatsCommand(interaction) {
       { name: "Aguardando pagamento", value: String(orders.filter((order) => order.status === "aguardando_pagamento").length), inline: true }
     );
 
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleGeneratePix(interaction) {
@@ -2294,13 +2350,13 @@ async function handleGeneratePix(interaction) {
     )
     .setFooter({ text: "Pix manual. A equipe ainda precisa conferir e aprovar." });
 
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleWalletStatsCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode ver a carteira.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode ver a carteira.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2326,14 +2382,14 @@ async function handleWalletStatsCommand(interaction) {
         { name: "Pedidos aprovados", value: String(approved.length), inline: true },
         { name: "Pedidos pendentes", value: String(pending.length), inline: true }
       )],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }
 
 async function handlePaymentConfigCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode configurar pagamentos.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode configurar pagamentos.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2359,13 +2415,13 @@ async function handlePaymentConfigCommand(interaction) {
 async function sendTicketPanel(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   await interaction.channel.send({ embeds: [supportPanelEmbed(shop)], components: supportRows() });
-  await interaction.reply({ content: "Painel de ticket enviado.", ephemeral: true });
+  await interaction.reply({ content: "Painel de ticket enviado.", flags: MessageFlags.Ephemeral });
 }
 
 async function createSupportTicket(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (isBlacklisted(shop, interaction.user.id)) {
-    await interaction.reply({ content: "Voce esta bloqueado de abrir atendimento nesta loja.", ephemeral: true });
+    await interaction.reply({ content: "Voce esta bloqueado de abrir atendimento nesta loja.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2418,7 +2474,7 @@ async function createSupportTicket(interaction) {
     .setTitle("Ticket de suporte aberto")
     .setDescription(`Ticket **${ticket.id}** aberto por <@${ticket.userId}>.`));
 
-  await interaction.reply({ content: `Ticket criado: ${channel}`, ephemeral: true });
+  await interaction.reply({ content: `Ticket criado: ${channel}`, flags: MessageFlags.Ephemeral });
 }
 
 async function handleTicketButton(interaction, action, ticketId) {
@@ -2428,13 +2484,13 @@ async function handleTicketButton(interaction, action, ticketId) {
   const shop = await getShopSettings(interaction.guildId);
 
   if (!ticket) {
-    await interaction.reply({ content: "Ticket nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Ticket nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (action === "claim") {
     if (!isStaff(interaction.member, shop)) {
-      await interaction.reply({ content: "Apenas a equipe pode assumir tickets.", ephemeral: true });
+      await interaction.reply({ content: "Apenas a equipe pode assumir tickets.", flags: MessageFlags.Ephemeral });
       return;
     }
     ticket.claimedBy = interaction.user.id;
@@ -2449,7 +2505,7 @@ async function handleTicketButton(interaction, action, ticketId) {
     const last = orders[orders.length - 1];
     await interaction.reply({
       content: last ? `Ultima compra aprovada: **${last.productId || last.planId || last.id}** em ${last.updatedAt || last.createdAt}.` : "Esse usuario nao tem compra aprovada.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -2457,14 +2513,14 @@ async function handleTicketButton(interaction, action, ticketId) {
   if (action === "close") {
     const canClose = ticket.userId === interaction.user.id || isStaff(interaction.member, shop);
     if (!canClose) {
-      await interaction.reply({ content: "Voce nao pode fechar este ticket.", ephemeral: true });
+      await interaction.reply({ content: "Voce nao pode fechar este ticket.", flags: MessageFlags.Ephemeral });
       return;
     }
     ticket.status = "closed";
     ticket.closedAt = new Date().toISOString();
     tickets[index] = ticket;
     await writeJson(TICKETS_FILE, tickets);
-    await interaction.reply({ content: "Ticket sera fechado em 5 segundos.", ephemeral: true });
+    await interaction.reply({ content: "Ticket sera fechado em 5 segundos.", flags: MessageFlags.Ephemeral });
     setTimeout(() => interaction.channel.delete("Ticket de suporte fechado").catch(() => null), 5000);
   }
 }
@@ -2472,7 +2528,7 @@ async function handleTicketButton(interaction, action, ticketId) {
 async function handleShopButton(interaction, action) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode alterar a loja.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode alterar a loja.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2747,7 +2803,7 @@ async function handleShopModal(interaction, action) {
   const settings = await getGuildSettings(interaction.guildId);
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode alterar a loja.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode alterar a loja.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2844,7 +2900,7 @@ async function handleShopModal(interaction, action) {
   await interaction.reply({
     content: "Loja configurada.",
     embeds: [shopPanelEmbed(await getShopSettings(interaction.guildId))],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }
 
@@ -2853,7 +2909,7 @@ async function handlePanelSelect(interaction) {
   const product = products.find((item) => item.id === interaction.values[0]);
 
   if (!product) {
-    await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Produto nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2865,7 +2921,7 @@ async function handleProductButton(interaction, action, productId) {
   const product = products.find((item) => item.id === productId);
 
   if (!product) {
-    await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Produto nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2877,7 +2933,7 @@ async function handleProductButton(interaction, action, productId) {
   if (action === "stock") {
     await interaction.reply({
       content: `Estoque de **${product.name}**: ${productStockText(product)}.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 }
@@ -2904,7 +2960,7 @@ async function publishPanel(channel, panelId, guildId, content = null) {
 async function handleBlacklistCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode gerenciar blacklist.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode gerenciar blacklist.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2920,7 +2976,7 @@ async function handleBlacklistCommand(interaction) {
     if (index >= 0) settings.shop.blacklist[index] = entry;
     else settings.shop.blacklist.push(entry);
     await saveGuildSettings(interaction.guildId, settings);
-    await interaction.reply({ content: `<@${user.id}> foi adicionado a blacklist.`, ephemeral: true });
+    await interaction.reply({ content: `<@${user.id}> foi adicionado a blacklist.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2928,20 +2984,20 @@ async function handleBlacklistCommand(interaction) {
     const user = interaction.options.getUser("usuario");
     settings.shop.blacklist = settings.shop.blacklist.filter((item) => item.userId !== user.id);
     await saveGuildSettings(interaction.guildId, settings);
-    await interaction.reply({ content: `<@${user.id}> foi removido da blacklist.`, ephemeral: true });
+    await interaction.reply({ content: `<@${user.id}> foi removido da blacklist.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const list = settings.shop.blacklist.length
     ? settings.shop.blacklist.map((item) => `<@${item.userId}> - ${item.reason}`).join("\n")
     : "Nenhum usuario bloqueado.";
-  await interaction.reply({ content: list, ephemeral: true });
+  await interaction.reply({ content: list, flags: MessageFlags.Ephemeral });
 }
 
 async function handleTermsCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode configurar termos.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode configurar termos.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -2956,7 +3012,7 @@ async function handleTermsCommand(interaction) {
       .setTitle("Termos atualizados")
       .setDescription(shortText(settings.shop.termsText, "Sem termos", 1500))
       .addFields({ name: "Obrigatorio", value: yesNo(settings.shop.termsRequired), inline: true })],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }
 
@@ -2986,7 +3042,7 @@ function giveawayRows(giveawayId) {
 async function handleGiveawayCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode gerenciar sorteios.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode gerenciar sorteios.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3011,7 +3067,7 @@ async function handleGiveawayCommand(interaction) {
     const giveaways = await getGiveaways();
     giveaways.push(giveaway);
     await saveGiveaways(giveaways);
-    await interaction.reply({ content: `Sorteio criado com ID \`${giveaway.id}\`.`, ephemeral: true });
+    await interaction.reply({ content: `Sorteio criado com ID \`${giveaway.id}\`.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3023,7 +3079,7 @@ async function endGiveaway(giveawayId, interaction = null) {
   const index = giveaways.findIndex((item) => item.id === giveawayId);
   const giveaway = giveaways[index];
   if (!giveaway || giveaway.status !== "open") {
-    if (interaction) await interaction.reply({ content: "Sorteio nao encontrado ou ja encerrado.", ephemeral: true });
+    if (interaction) await interaction.reply({ content: "Sorteio nao encontrado ou ja encerrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3042,7 +3098,7 @@ async function endGiveaway(giveawayId, interaction = null) {
       : `Sorteio **${giveaway.prize}** encerrado sem participantes.`);
   }
 
-  if (interaction) await interaction.reply({ content: "Sorteio encerrado.", ephemeral: true });
+  if (interaction) await interaction.reply({ content: "Sorteio encerrado.", flags: MessageFlags.Ephemeral });
 }
 
 async function handleGiveawayButton(interaction, action, giveawayId) {
@@ -3052,17 +3108,17 @@ async function handleGiveawayButton(interaction, action, giveawayId) {
   const index = giveaways.findIndex((item) => item.id === giveawayId);
   const giveaway = giveaways[index];
   if (!giveaway || giveaway.status !== "open") {
-    await interaction.reply({ content: "Este sorteio ja foi encerrado.", ephemeral: true });
+    await interaction.reply({ content: "Este sorteio ja foi encerrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (giveaway.requiredRoleId && !interaction.member.roles.cache.has(giveaway.requiredRoleId)) {
-    await interaction.reply({ content: "Voce nao tem o cargo necessario para participar.", ephemeral: true });
+    await interaction.reply({ content: "Voce nao tem o cargo necessario para participar.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (giveaway.participants.includes(interaction.user.id)) {
-    await interaction.reply({ content: "Voce ja esta participando.", ephemeral: true });
+    await interaction.reply({ content: "Voce ja esta participando.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3070,7 +3126,7 @@ async function handleGiveawayButton(interaction, action, giveawayId) {
   giveaways[index] = giveaway;
   await saveGiveaways(giveaways);
 
-  await interaction.reply({ content: "Voce entrou no sorteio.", ephemeral: true });
+  await interaction.reply({ content: "Voce entrou no sorteio.", flags: MessageFlags.Ephemeral });
   await interaction.message.edit({ embeds: [giveawayEmbed(giveaway)], components: giveawayRows(giveaway.id) }).catch(() => null);
 }
 
@@ -3108,7 +3164,7 @@ async function processScheduledTasks() {
 async function handleRepostCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode configurar repost.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode configurar repost.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3121,7 +3177,7 @@ async function handleRepostCommand(interaction) {
   const filtered = reposts.filter((item) => item.key !== key);
   if (minutes <= 0) {
     await saveReposts(filtered);
-    await interaction.reply({ content: "Repost desativado para este item neste canal.", ephemeral: true });
+    await interaction.reply({ content: "Repost desativado para este item neste canal.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3135,7 +3191,7 @@ async function handleRepostCommand(interaction) {
     nextAt: new Date(Date.now() + minutes * 60000).toISOString()
   });
   await saveReposts(filtered);
-  await interaction.reply({ content: `Repost configurado a cada ${minutes} minuto(s).`, ephemeral: true });
+  await interaction.reply({ content: `Repost configurado a cada ${minutes} minuto(s).`, flags: MessageFlags.Ephemeral });
 }
 
 async function handleReviewCommand(interaction) {
@@ -3144,7 +3200,7 @@ async function handleReviewCommand(interaction) {
   const orders = (await getOrders()).filter((order) => order.guildId === interaction.guildId && order.userId === interaction.user.id && order.status === "aprovado");
   const order = orders[orders.length - 1];
   if (!order) {
-    await interaction.reply({ content: "Voce precisa ter uma compra aprovada para avaliar.", ephemeral: true });
+    await interaction.reply({ content: "Voce precisa ter uma compra aprovada para avaliar.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3176,13 +3232,13 @@ async function handleReviewCommand(interaction) {
     await channel?.send({ embeds: [embed] }).catch(() => null);
   }
 
-  await interaction.reply({ content: "Obrigado pela avaliacao.", ephemeral: true });
+  await interaction.reply({ content: "Obrigado pela avaliacao.", flags: MessageFlags.Ephemeral });
 }
 
 async function handleProtectionCommand(interaction) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode configurar protecoes.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode configurar protecoes.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3193,14 +3249,14 @@ async function handleProtectionCommand(interaction) {
 
   await interaction.reply({
     content: `Anti-link ${settings.protection.antiLink ? "ativado" : "desativado"}.`,
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }
 
 async function handleProtectionButton(interaction, action) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode configurar protecoes.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode configurar protecoes.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3222,7 +3278,7 @@ async function beginProductPurchase(interaction, product, field = null, accepted
     await interaction.reply({
       content: `Escolha uma opcao de **${product.name}**:`,
       components: [productFieldSelect(product)],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -3237,7 +3293,7 @@ async function handleFieldSelect(interaction) {
   const field = getProductFields(product || {}).find((item) => item.id === interaction.values[0]);
 
   if (!product || !field) {
-    await interaction.reply({ content: "Opcao nao encontrada.", ephemeral: true });
+    await interaction.reply({ content: "Opcao nao encontrada.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3252,7 +3308,7 @@ async function handleTermsAccept(interaction, productId, fieldId) {
     : null;
 
   if (!product) {
-    await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Produto nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3262,7 +3318,7 @@ async function handleTermsAccept(interaction, productId, fieldId) {
 async function handleConfigButton(interaction, action) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode alterar configuracoes.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode alterar configuracoes.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3356,7 +3412,7 @@ async function handleConfigButton(interaction, action) {
 async function handleConfigModal(interaction, action) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode alterar configuracoes.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode alterar configuracoes.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3385,14 +3441,14 @@ async function handleConfigModal(interaction, action) {
   await interaction.reply({
     content: "Configuracao salva.",
     embeds: [configPanelEmbed(settings)],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }
 
 async function handleProofButton(interaction, orderId) {
   const order = await findOrder(orderId);
   if (!order || order.userId !== interaction.user.id) {
-    await interaction.reply({ content: "Este pedido nao pertence a voce.", ephemeral: true });
+    await interaction.reply({ content: "Este pedido nao pertence a voce.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3423,12 +3479,12 @@ async function handleProofButton(interaction, orderId) {
 async function handleCouponButton(interaction, orderId) {
   const order = await findOrder(orderId);
   if (!order || order.userId !== interaction.user.id) {
-    await interaction.reply({ content: "Este carrinho nao pertence a voce.", ephemeral: true });
+    await interaction.reply({ content: "Este carrinho nao pertence a voce.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (order.type !== "product") {
-    await interaction.reply({ content: "Cupom so esta disponivel para produtos.", ephemeral: true });
+    await interaction.reply({ content: "Cupom so esta disponivel para produtos.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3452,7 +3508,7 @@ async function handleCouponButton(interaction, orderId) {
 async function handleCouponModal(interaction, orderId) {
   const order = await findOrder(orderId);
   if (!order || order.userId !== interaction.user.id) {
-    await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Carrinho nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3461,7 +3517,7 @@ async function handleCouponModal(interaction, orderId) {
   const field = getProductFields(product || {}).find((item) => item.id === order.fieldId);
   const item = field || product;
   if (!product || !product.couponsEnabled) {
-    await interaction.reply({ content: "Este produto nao aceita cupom.", ephemeral: true });
+    await interaction.reply({ content: "Este produto nao aceita cupom.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3470,7 +3526,7 @@ async function handleCouponModal(interaction, orderId) {
   const coupon = coupons.find((item) => item.code === code && item.active);
 
   if (!coupon || (coupon.maxUses && coupon.used >= coupon.maxUses)) {
-    await interaction.reply({ content: "Cupom invalido ou esgotado.", ephemeral: true });
+    await interaction.reply({ content: "Cupom invalido ou esgotado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3482,7 +3538,7 @@ async function handleCouponModal(interaction, orderId) {
 
   await interaction.reply({
     content: `Cupom **${code}** aplicado. Novo total: **${brl(order.total)}**.`,
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 
   await interaction.channel.send({
@@ -3494,12 +3550,12 @@ async function handleCouponModal(interaction, orderId) {
 async function handleWalletPix(interaction, orderId) {
   const order = await findOrder(orderId);
   if (!order || order.userId !== interaction.user.id) {
-    await interaction.reply({ content: "Pedido nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Pedido nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const shop = await getShopSettings(interaction.guildId);
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const provider = autoPaymentProvider(shop);
 
   if (order.walletPix?.paymentId) {
@@ -3546,23 +3602,23 @@ async function handleWalletPix(interaction, orderId) {
 async function handleCheckWalletPix(interaction, orderId) {
   const order = await findOrder(orderId);
   if (!order) {
-    await interaction.reply({ content: "Pedido nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Pedido nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const shop = await getShopSettings(interaction.guildId);
   const canCheck = order.userId === interaction.user.id || isStaff(interaction.member, shop);
   if (!canCheck) {
-    await interaction.reply({ content: "Voce nao pode verificar este pedido.", ephemeral: true });
+    await interaction.reply({ content: "Voce nao pode verificar este pedido.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (!order.walletPix?.paymentId) {
-    await interaction.reply({ content: "Este pedido ainda nao tem Pix carteira gerado.", ephemeral: true });
+    await interaction.reply({ content: "Este pedido ainda nao tem Pix carteira gerado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const provider = order.walletPix.provider || "mercadopago";
   const payment = provider === "efibank"
     ? await getEfiPixPayment(order.walletPix.txid || order.walletPix.paymentId, shop)
@@ -3585,7 +3641,7 @@ async function handleCheckWalletPix(interaction, orderId) {
 async function handleProofModal(interaction, orderId) {
   const order = await findOrder(orderId);
   if (!order || order.userId !== interaction.user.id) {
-    await interaction.reply({ content: "Pedido nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Pedido nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3607,7 +3663,7 @@ async function handleProofModal(interaction, orderId) {
       { name: "Detalhes", value: order.proof.details }
     );
 
-  await interaction.reply({ content: "Comprovante enviado para analise da equipe.", ephemeral: true });
+  await interaction.reply({ content: "Comprovante enviado para analise da equipe.", flags: MessageFlags.Ephemeral });
   await interaction.channel.send({ embeds: [embed] });
   await log(interaction.guild, embed);
 }
@@ -3615,13 +3671,13 @@ async function handleProofModal(interaction, orderId) {
 async function handleApprove(interaction, orderId, requireStaff = true) {
   const shop = await getShopSettings(interaction.guildId);
   if (requireStaff && !isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode aprovar pedidos.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode aprovar pedidos.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const order = await findOrder(orderId);
   if (!order) {
-    await interaction.reply({ content: "Pedido nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Pedido nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3634,7 +3690,7 @@ async function handleApprove(interaction, orderId, requireStaff = true) {
     const product = products[productIndex];
 
     if (!product) {
-      await interaction.reply({ content: "Produto nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Produto nao encontrado.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -3647,7 +3703,7 @@ async function handleApprove(interaction, orderId, requireStaff = true) {
 
     if (deliveryMode === "automatic") {
       if (stock.length <= 0) {
-        await interaction.reply({ content: "Produto sem estoque para entrega automatica.", ephemeral: true });
+        await interaction.reply({ content: "Produto sem estoque para entrega automatica.", flags: MessageFlags.Ephemeral });
         return;
       }
       const deliveredItem = stock.shift();
@@ -3684,7 +3740,7 @@ async function handleApprove(interaction, orderId, requireStaff = true) {
   } else {
     await interaction.reply({
       content: "Esse pedido usa um modelo antigo. O sistema agora usa apenas produtos e paineis.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -3701,7 +3757,7 @@ async function handleApprove(interaction, orderId, requireStaff = true) {
 
   await interaction.channel.send({ content: `<@${order.userId}>`, embeds: [embed] });
   await interaction.channel.send(`<@${order.userId}> depois que receber, voce pode avaliar com \`/avaliar\`.`).catch(() => null);
-  const replyPayload = { content: "Pedido aprovado.", ephemeral: true };
+  const replyPayload = { content: "Pedido aprovado.", flags: MessageFlags.Ephemeral };
   if (interaction.replied || interaction.deferred) await interaction.followUp(replyPayload).catch(() => null);
   else await interaction.reply(replyPayload);
   await log(interaction.guild, embed);
@@ -3715,13 +3771,13 @@ async function handleApprove(interaction, orderId, requireStaff = true) {
 async function handleReject(interaction, orderId) {
   const shop = await getShopSettings(interaction.guildId);
   if (!isStaff(interaction.member, shop)) {
-    await interaction.reply({ content: "Apenas a equipe pode reprovar pedidos.", ephemeral: true });
+    await interaction.reply({ content: "Apenas a equipe pode reprovar pedidos.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const order = await findOrder(orderId);
   if (!order) {
-    await interaction.reply({ content: "Pedido nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Pedido nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3731,20 +3787,20 @@ async function handleReject(interaction, orderId) {
   await saveOrder(order);
 
   await interaction.channel.send(`<@${order.userId}> seu pagamento nao foi aprovado. Fale com a equipe para conferir os dados.`);
-  await interaction.reply({ content: "Pedido reprovado.", ephemeral: true });
+  await interaction.reply({ content: "Pedido reprovado.", flags: MessageFlags.Ephemeral });
 }
 
 async function handleClose(interaction, orderId) {
   const order = await findOrder(orderId);
   if (!order) {
-    await interaction.reply({ content: "Pedido nao encontrado.", ephemeral: true });
+    await interaction.reply({ content: "Pedido nao encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const shop = await getShopSettings(interaction.guildId);
   const canClose = order.userId === interaction.user.id || isStaff(interaction.member, shop);
   if (!canClose) {
-    await interaction.reply({ content: "Voce nao pode fechar este ticket.", ephemeral: true });
+    await interaction.reply({ content: "Voce nao pode fechar este ticket.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -3752,7 +3808,7 @@ async function handleClose(interaction, orderId) {
   order.updatedAt = new Date().toISOString();
   await saveOrder(order);
 
-  await interaction.reply({ content: "Ticket sera fechado em 5 segundos.", ephemeral: true });
+  await interaction.reply({ content: "Ticket sera fechado em 5 segundos.", flags: MessageFlags.Ephemeral });
   setTimeout(() => interaction.channel.delete("Ticket de compra fechado").catch(() => null), 5000);
 }
 
@@ -3902,6 +3958,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === "setup-loja") await sendStorePanel(interaction);
       if (interaction.commandName === "painel-config") await sendConfigPanel(interaction);
       if (interaction.commandName === "botconfig") await sendBotConfigPanel(interaction);
+      if (interaction.commandName === "ajuda") await handleHelpCommand(interaction);
+      if (interaction.commandName === "diagnostico") await handleDiagnosticCommand(interaction);
       if (interaction.commandName === "painel-loja") await sendShopPanel(interaction);
       if (interaction.commandName === "criar") await handleCreateCommand(interaction);
       if (interaction.commandName === "editar") await handleEditCommand(interaction);
@@ -4013,7 +4071,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   } catch (error) {
     console.error(error);
-    const payload = { content: "Ocorreu um erro ao processar essa acao.", ephemeral: true };
+    const payload = { content: "Ocorreu um erro ao processar essa acao.", flags: MessageFlags.Ephemeral };
     if (interaction.replied || interaction.deferred) await interaction.followUp(payload).catch(() => null);
     else await interaction.reply(payload).catch(() => null);
   }
