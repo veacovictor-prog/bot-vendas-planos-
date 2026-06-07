@@ -1,4 +1,4 @@
-# Loja Blox Fruits Discord
+# Sensei Vendas Discord
 
 Bot de Discord para vender contas, ups e servicos de Blox Fruits. Ele cria painel de produtos, abre carrinho privado, mostra dados de Pix, registra pedido em JSON e permite que a equipe aprove ou reprove a compra.
 

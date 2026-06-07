@@ -42,7 +42,7 @@ const config = {
   ticketCategoryId: process.env.TICKET_CATEGORY_ID,
   staffRoleId: process.env.STAFF_ROLE_ID,
   pixKey: process.env.PIX_KEY || "",
-  storeName: process.env.STORE_NAME || "Loja Blox Fruits",
+  storeName: process.env.STORE_NAME || "Sensei Vendas",
   supportUrl: process.env.SUPPORT_URL || ""
 };
 
@@ -868,10 +868,10 @@ function supportPanelEmbed(shop) {
     .setTitle("Central de atendimento")
     .setDescription("Abra um ticket para falar com o suporte. A equipe vai responder assim que possivel.")
     .addFields(
-      { name: "Loja", value: shop.storeName || "Loja Blox Fruits", inline: true },
+      { name: "Loja", value: shop.storeName || "Sensei Vendas", inline: true },
       { name: "Equipe", value: shop.staffRoleId ? `<@&${shop.staffRoleId}>` : "Staff", inline: true }
     )
-    .setFooter({ text: shop.storeName || "Loja Blox Fruits" });
+    .setFooter({ text: shop.storeName || "Sensei Vendas" });
 }
 
 function supportRows() {
@@ -890,7 +890,7 @@ function botConfigEmbed(shop, settings) {
   return new EmbedBuilder()
     .setColor(theme.dark)
     .setTitle("Painel de Controle")
-    .setDescription(`Bom dia, aqui voce gerencia sua loja de contas e servicos Blox Fruits.\n\n**${shop.storeName || "Loja Blox Fruits"}**`)
+    .setDescription(`Bom dia, aqui voce gerencia sua loja de contas e servicos Blox Fruits.\n\n**${shop.storeName || "Sensei Vendas"}**`)
     .addFields(
       { name: "Vendas", value: shop.salesEnabled === false ? "Desligadas" : "Ligadas", inline: true },
       { name: "Pix auto", value: autoPaymentProvider(shop) === "efi" ? "Efi Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Pendente", inline: true },
@@ -1039,7 +1039,7 @@ function storeOverviewEmbed(shop, products, orders) {
       { name: "Pix auto", value: autoPaymentProvider(shop) === "efi" ? "Efi Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Pendente", inline: true },
       { name: "Chave Pix", value: shop.pixKey ? "Configurada" : "Pendente", inline: true }
     )
-    .setFooter({ text: shop.storeName || "Loja Blox Fruits" });
+    .setFooter({ text: shop.storeName || "Sensei Vendas" });
 }
 
 function storeOverviewRows(shop = {}) {
@@ -3544,7 +3544,7 @@ function productEmbed(product, shop) {
       { name: "Status", value: product.active === false ? "Desativado" : "Ativo", inline: true },
       { name: "Opcoes", value: fieldsText }
     )
-    .setFooter({ text: `${shop.storeName || "Loja Blox Fruits"} • ${product.couponsEnabled ? "Cupons aceitos" : "Sem cupons"}` });
+    .setFooter({ text: `${shop.storeName || "Sensei Vendas"} • ${product.couponsEnabled ? "Cupons aceitos" : "Sem cupons"}` });
 
   if (product.imageUrl) embed.setImage(product.imageUrl);
   return embed;
@@ -3590,7 +3590,7 @@ function panelEmbed(panel, products, shop) {
     .setColor(theme.purple)
     .setTitle(panel.name)
     .setDescription(panel.description || "Escolha um produto abaixo.")
-    .setFooter({ text: `${shop.storeName || "Loja Blox Fruits"} • selecione no menu abaixo` });
+    .setFooter({ text: `${shop.storeName || "Sensei Vendas"} • selecione no menu abaixo` });
 }
 
 function panelSelect(panel, products) {
