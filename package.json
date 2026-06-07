@@ -1,7 +1,7 @@
 {
-  "name": "loja-bots-discord",
+  "name": "loja-blox-fruits-discord",
   "version": "1.0.0",
-  "description": "Bot profissional de loja Discord com produtos, tickets, Pix, paineis e automacoes.",
+  "description": "Bot profissional de loja Discord para contas, ups e servicos de Blox Fruits.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

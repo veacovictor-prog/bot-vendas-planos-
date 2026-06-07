@@ -1,6 +1,6 @@
-# Loja de Bots Discord
+# Loja Blox Fruits Discord
 
-Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre carrinho privado para o cliente, mostra dados de Pix, registra pedido em JSON e permite que a equipe aprove ou reprove a compra.
+Bot de Discord para vender contas, ups e servicos de Blox Fruits. Ele cria painel de produtos, abre carrinho privado, mostra dados de Pix, registra pedido em JSON e permite que a equipe aprove ou reprove a compra.
 
 ## Funcoes
 
@@ -9,7 +9,7 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 - `/diagnostico`: verifica produtos, paineis, pagamento, logs e tickets.
 - `/painel-loja`: configura nome da loja, Pix, canal de logs, categoria de tickets e cargo staff.
 - `/painel-config`: envia o painel para configurar boas-vindas, auto-cargo e anti-fake.
-- `/botconfig`: abre o painel central estilo Promisse com loja, tickets, protecao, sorteios, apps e automacoes.
+- `/botconfig`: abre o painel central com loja, tickets, protecao, sorteios e automacoes.
 - `/criar produto`: cria produto com preco, descricao, entrega manual ou automatica e estoque.
 - `/criar campo`: adiciona uma opcao/campo dentro de um produto.
 - `/criar painel`: cria painel com varios produtos.
@@ -30,7 +30,6 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 - `/repost`: republica produto/painel automaticamente.
 - `/avaliar`: cliente avalia a ultima compra aprovada.
 - `/protecao`: ativa/desativa anti-link basico.
-- `/apps`: cliente com compra aprovada conecta e configura o bot adquirido.
 - Botao `Comprar`: cria ticket privado para pagamento.
 - Botao `Enviar comprovante`: abre modal para o cliente informar dados do pagamento.
 - Botao `Aplicar cupom`: aplica desconto no carrinho.
@@ -55,11 +54,10 @@ Bot de Discord para vender produtos/bots. Ele cria um painel com botoes, abre ca
 - **Sorteios:** botao de participar, requisito por cargo e encerramento automatico.
 - **Repost automatico:** produto ou painel repostado por intervalo.
 - **Protecao anti-link:** remove links de usuarios sem cargo staff.
-- **Painel botconfig:** menu central com secoes de loja, produtos, tickets, protecao, sorteios, apps e automacoes.
+- **Painel botconfig:** menu central com secoes de loja, produtos, tickets, protecao, sorteios e automacoes.
 - **Pagamentos:** Pix, comprovante manual, Mercado Pago e carteira integrada podem ser ligados/desligados no painel.
 - **Carteira integrada:** gera Pix pelo Mercado Pago, verifica pagamento e registra o valor recebido para saque posterior na conta Mercado Pago.
 - **Protecao anti-bot:** remove bots adicionados quando a protecao estiver ativa.
-- **Apps de clientes:** cliente aprovado conecta o token do bot comprado e altera nome, foto e status.
 - **Boas-vindas:** mensagem customizavel com `{user}` para mencionar o membro.
 - **Auto-cargo:** cargo automatico para novos membros.
 - **Anti-fake:** detecta contas recentes e pode apenas logar ou expulsar automaticamente.
@@ -274,28 +272,6 @@ Depois de uma compra aprovada, o cliente usa:
 ```txt
 /protecao anti-link:true
 ```
-
-### Apps de clientes
-
-Depois que uma compra for aprovada, o cliente usa:
-
-```txt
-/apps
-```
-
-No painel ele pode:
-
-- conectar o token do bot comprado
-- mudar nome do bot
-- mudar foto/avatar por URL
-- mudar status/bio curta que aparece como presenca
-- listar e remover os bots conectados
-
-Observacoes importantes:
-
-- O token do bot do cliente fica salvo em `data/apps.json`. No Railway, use `DATA_DIR=/data` com Volume para nao perder os dados.
-- Nunca envie `data/apps.json` com tokens reais para o GitHub.
-- A API do Discord permite alterar nome, avatar e presenca do bot. A bio real do perfil pode nao ser liberada para bots; por isso a bio fica salva como descricao interna e pode ser usada como texto de status.
 
 ## Ticket de suporte
 
