@@ -31,16 +31,13 @@ Bot de Discord para vender contas, ups e servicos de Blox Fruits. Ele cria paine
 - `/repost`: republica produto/painel automaticamente.
 - `/avaliar`: cliente avalia a ultima compra aprovada.
 - `/protecao`: ativa/desativa anti-link basico.
-- Botao `Comprar`: cria ticket privado para pagamento.
-- Botao `Enviar comprovante`: abre modal para o cliente informar dados do pagamento.
+- Botao `Comprar`: cria ticket privado para negociar valor e entrega.
 - Botao `Aplicar cupom`: aplica desconto no carrinho.
-- Botao `Aprovar`: marca pedido como aprovado e envia a mensagem de entrega.
-- Botao `Reprovar`: marca pedido como reprovado.
 - Botao `Fechar ticket`: fecha o canal do pedido.
 
 ## Modulos estilo Promisse Apps
 
-- **Sistema de vendas:** produtos, carrinho de compra, Pix e aprovacao por staff.
+- **Sistema de vendas:** produtos, carrinho de compra e negociacao manual por ticket.
 - **Produtos e estoque:** produtos com entrega manual ou automatica.
 - **Painel multi-produto:** um menu com varios produtos em um painel so.
 - **Cupons:** desconto percentual com limite de uso opcional.
@@ -56,13 +53,13 @@ Bot de Discord para vender contas, ups e servicos de Blox Fruits. Ele cria paine
 - **Repost automatico:** produto ou painel repostado por intervalo.
 - **Protecao anti-link:** remove links de usuarios sem cargo staff.
 - **Painel botconfig:** menu central com secoes de loja, produtos, tickets, protecao, sorteios e automacoes.
-- **Pagamentos:** Pix, comprovante manual, Mercado Pago e carteira integrada podem ser ligados/desligados no painel.
+- **Pagamentos:** fluxo manual por ticket, com valor exibido como `A negociar` no carrinho.
 - **Carteira integrada:** gera Pix pelo Mercado Pago, verifica pagamento e registra o valor recebido para saque posterior na conta Mercado Pago.
 - **Protecao anti-bot:** remove bots adicionados quando a protecao estiver ativa.
 - **Boas-vindas:** mensagem customizavel com `{user}` para mencionar o membro.
 - **Auto-cargo:** cargo automatico para novos membros.
 - **Anti-fake:** detecta contas recentes e pode apenas logar ou expulsar automaticamente.
-- **Logs:** pedidos, comprovantes e alertas anti-fake podem ir para um canal definido.
+- **Logs:** pedidos e alertas anti-fake podem ir para um canal definido.
 
 ## Como instalar
 
@@ -223,10 +220,7 @@ Tambem da para abrir pelo painel:
 Loja > Carteira integrada
 ```
 
-No carrinho o cliente usa:
-
-- `Pix auto`: gera o Pix copia e cola no Efí Bank ou Mercado Pago.
-- `Verificar Pix`: consulta o provedor; se estiver aprovado, o bot aprova e entrega automaticamente.
+O carrinho atual usa negociacao manual por ticket. O cliente ve o valor como `A negociar` e combina o pagamento diretamente com a equipe.
 
 Para ver o resumo:
 

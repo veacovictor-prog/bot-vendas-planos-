@@ -291,16 +291,10 @@ const commands = [
     .setDescription("Mostra os recebimentos Pix da carteira integrada."),
   new SlashCommandBuilder()
     .setName("config-pagamento")
-    .setDescription("Configura Pix e pagamentos automaticos sem mexer no Railway.")
+    .setDescription("Configura pagamentos manuais sem mexer no Railway.")
     .addSubcommand((subcommand) => subcommand
       .setName("pix")
       .setDescription("Configura chave Pix e metodos manuais."))
-    .addSubcommand((subcommand) => subcommand
-      .setName("efi")
-      .setDescription("Configura Pix automatico da Efi Bank."))
-    .addSubcommand((subcommand) => subcommand
-      .setName("mercadopago")
-      .setDescription("Configura Pix automatico do Mercado Pago."))
     .addSubcommand((subcommand) => subcommand
       .setName("status")
       .setDescription("Mostra se os pagamentos estao configurados.")),
@@ -799,8 +793,7 @@ function shopPanelEmbed(shop) {
       { name: "Nome", value: shop.storeName || "Nao configurado", inline: true },
       { name: "Pix", value: shop.pixKey ? `\`${shop.pixKey}\`` : "Nao configurado", inline: true },
       { name: "Vendas", value: shop.salesEnabled ? "Ligadas" : "Desligadas", inline: true },
-      { name: "Pagamentos", value: paymentMethodsText(shop), inline: true },
-      { name: "Pix auto", value: autoPaymentProvider(shop) === "efi" ? "Efí Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Nao configurado", inline: true },
+      { name: "Pagamentos", value: "Negociacao manual por ticket", inline: true },
       { name: "Suporte", value: shop.supportUrl || "Nao configurado", inline: true },
       { name: "Log privada", value: shop.logChannelId ? `<#${shop.logChannelId}>` : "Nao configurado", inline: true },
       { name: "Log publica", value: shop.publicLogChannelId ? `<#${shop.publicLogChannelId}>` : "Nao configurado", inline: true },
@@ -893,7 +886,7 @@ function botConfigEmbed(shop, settings) {
     .setDescription(`Bom dia, aqui voce gerencia sua loja de contas e servicos Blox Fruits.\n\n**${shop.storeName || "Sensei Vendas"}**`)
     .addFields(
       { name: "Vendas", value: shop.salesEnabled === false ? "Desligadas" : "Ligadas", inline: true },
-      { name: "Pix auto", value: autoPaymentProvider(shop) === "efi" ? "Efi Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Pendente", inline: true },
+      { name: "Pagamento", value: "A negociar no ticket", inline: true },
       { name: "Protecao", value: settings.protection?.antiBot || settings.protection?.antiLink ? "Ativa" : "Basica", inline: true },
       { name: "Tickets", value: shop.ticketCategoryId ? "Configurado" : "Pendente", inline: true },
       { name: "Apps", value: "Compras, tickets e entregas organizadas", inline: true },
@@ -1033,11 +1026,10 @@ function storeOverviewEmbed(shop, products, orders) {
     .setDescription("Escolha o que deseja fazer.")
     .addFields(
       { name: "Total criados", value: `${products.length} produto(s)`, inline: true },
-      { name: "Saldo", value: autoPaymentProvider(shop) === "efi" ? `${brl(received)} | Efi Bank` : shop.mercadoPagoAccessToken ? `${brl(received)} | Mercado Pago` : "Nao configurado", inline: true },
+      { name: "Modelo", value: "Negociacao manual", inline: true },
       { name: "Moeda padrao", value: "BRL - pt_BR", inline: true },
       { name: "Vendas", value: shop.salesEnabled ? "Ligadas" : "Desligadas", inline: true },
-      { name: "Pix auto", value: autoPaymentProvider(shop) === "efi" ? "Efi Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Pendente", inline: true },
-      { name: "Chave Pix", value: shop.pixKey ? "Configurada" : "Pendente", inline: true }
+      { name: "Valor no carrinho", value: "A negociar", inline: true }
     )
     .setFooter({ text: shop.storeName || "Sensei Vendas" });
 }
@@ -1226,7 +1218,7 @@ async function handleBotConfigSection(interaction, section) {
         .addFields(
           { name: "Recebido", value: brl(total), inline: true },
           { name: "Pedidos aprovados", value: String(approved.length), inline: true },
-          { name: "Provedor", value: autoPaymentProvider(shop) === "efi" ? "Efi Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Manual", inline: true }
+          { name: "Modelo", value: "Manual por ticket", inline: true }
         )],
       components: botConfigRows(shop)
     });
@@ -1244,7 +1236,7 @@ async function handleStoreMoreOption(interaction) {
     },
     wallet: {
       title: "Sistema de Saldo",
-      description: "Use Pix auto com Efi Bank ou Mercado Pago e acompanhe em /carteira."
+      description: "Fluxo manual por ticket. Combine valores, formas de pagamento e entrega direto com a equipe."
     },
     coupons: {
       title: "Cupons",
@@ -1352,11 +1344,6 @@ function paymentRows(orderId, shop = {}) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`order:proof:${orderId}`)
-        .setEmoji(buttonEmoji(shop, "proof"))
-        .setLabel("Enviar comprovante")
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
         .setCustomId(`order:coupon:${orderId}`)
         .setEmoji(buttonEmoji(shop, "coupon"))
         .setLabel("Aplicar cupom")
@@ -1365,28 +1352,6 @@ function paymentRows(orderId, shop = {}) {
         .setCustomId(`order:close:${orderId}`)
         .setEmoji(buttonEmoji(shop, "lock"))
         .setLabel("Fechar ticket")
-        .setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`order:walletpix:${orderId}`)
-        .setEmoji(buttonEmoji(shop, "wallet"))
-        .setLabel("Pix auto")
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`order:checkpix:${orderId}`)
-        .setEmoji(buttonEmoji(shop, "search"))
-        .setLabel("Verificar Pix")
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`order:approve:${orderId}`)
-        .setEmoji(buttonEmoji(shop, "approve"))
-        .setLabel("Aprovar")
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`order:reject:${orderId}`)
-        .setEmoji(buttonEmoji(shop, "reject"))
-        .setLabel("Reprovar")
         .setStyle(ButtonStyle.Secondary)
     )
   ];
@@ -2064,11 +2029,10 @@ async function handleWalletStatsCommand(interaction) {
     embeds: [new EmbedBuilder()
       .setColor(theme.success)
       .setTitle("Carteira integrada")
-      .setDescription("Resumo dos Pix automáticos. O saque e feito na sua conta do provedor configurado.")
+      .setDescription("Resumo dos pedidos registrados. O pagamento e combinado manualmente pelo ticket.")
       .addFields(
-        { name: "Provedor ativo", value: autoPaymentProvider(shop) === "efi" ? "Efí Bank" : autoPaymentProvider(shop) === "mercadopago" ? "Mercado Pago" : "Pendente", inline: true },
-        { name: "Efí Bank", value: shop.efiClientId ? "Configurado" : "Pendente", inline: true },
-        { name: "Mercado Pago", value: shop.mercadoPagoAccessToken ? "Configurado" : "Pendente", inline: true },
+        { name: "Modelo", value: "Manual por ticket", inline: true },
+        { name: "Valor no carrinho", value: "A negociar", inline: true },
         { name: "Recebido aprovado", value: brl(approvedTotal), inline: true },
         { name: "Pendente", value: brl(pendingTotal), inline: true },
         { name: "Pedidos aprovados", value: String(approved.length), inline: true },
@@ -2091,13 +2055,11 @@ async function handlePaymentConfigCommand(interaction) {
     return;
   }
 
-  if (section === "efi") {
-    await handleShopButton(interaction, "efi");
-    return;
-  }
-
-  if (section === "mercadopago") {
-    await handleShopButton(interaction, "mercadopago");
+  if (section === "efi" || section === "mercadopago") {
+    await interaction.reply({
+      content: "Pix automatico foi desativado. Use o ticket para negociar valor e pagamento manualmente.",
+      flags: MessageFlags.Ephemeral
+    });
     return;
   }
 
@@ -3138,6 +3100,12 @@ async function handleConfigModal(interaction, action) {
 }
 
 async function handleProofButton(interaction, orderId) {
+  await interaction.reply({
+    content: "O envio de comprovante foi desativado. Combine tudo pelo ticket.",
+    flags: MessageFlags.Ephemeral
+  });
+  return;
+
   const order = await findOrder(orderId);
   if (!order || order.userId !== interaction.user.id) {
     await interaction.reply({ content: "Este pedido nao pertence a voce.", flags: MessageFlags.Ephemeral });
@@ -3146,7 +3114,7 @@ async function handleProofButton(interaction, orderId) {
 
   const modal = new ModalBuilder()
     .setCustomId(`order:proof-modal:${orderId}`)
-    .setTitle("Enviar comprovante");
+    .setTitle("Fluxo desativado");
 
   modal.addComponents(
     new ActionRowBuilder().addComponents(
@@ -3229,7 +3197,7 @@ async function handleCouponModal(interaction, orderId) {
   await saveOrder(order);
 
   await interaction.reply({
-    content: `Cupom **${code}** aplicado. Novo total: **${brl(order.total)}**.`,
+    content: `Cupom **${code}** aplicado. O valor final continua **a negociar** no ticket.`,
     flags: MessageFlags.Ephemeral
   });
 
@@ -3251,7 +3219,7 @@ async function handleWalletPix(interaction, orderId) {
   const provider = autoPaymentProvider(shop);
 
   if (order.walletPix?.paymentId) {
-    await interaction.editReply(`Ja existe um Pix gerado para este pedido. Use **Verificar Pix**.\n\nCopia e cola:\n\`\`\`\n${order.walletPix.qrCode || "Nao disponivel"}\n\`\`\``);
+    await interaction.editReply("O Pix automatico foi desativado para este carrinho. Combine o pagamento no ticket.");
     return;
   }
 
@@ -3512,14 +3480,12 @@ function cartEmbed(order, product, shop) {
   return new EmbedBuilder()
     .setColor(theme.warning)
     .setTitle("Carrinho de compra")
-    .setDescription(`Finalize o pagamento e envie o comprovante para a equipe aprovar.\n\n**${product.name}**${discountLine}`)
+    .setDescription(`Combine o valor e a entrega com a equipe neste ticket.\n\n**${product.name}**${discountLine}`)
     .addFields(
-      { name: "Total", value: brl(order.total), inline: true },
+      { name: "Valor", value: "A negociar", inline: true },
       { name: "Cliente", value: `<@${order.userId}>`, inline: true },
       { name: "Status", value: order.status, inline: true },
-      { name: "Chave Pix", value: `\`${shop.pixKey || "Configure o Pix em /painel-loja"}\`` },
-      { name: "Formas de pagamento", value: paymentMethodsText(shop), inline: true },
-      { name: "Entrega", value: product.deliveryMode === "automatic" ? "Automatica apos aprovacao" : "Manual pela equipe" }
+      { name: "Entrega", value: product.deliveryMode === "automatic" ? "Automatica apos combinacao" : "Manual pela equipe" }
     )
     .setFooter({ text: `Pedido ${order.id}` });
 }
@@ -3731,6 +3697,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleConfigButton(interaction, action);
         return;
       }
+      if (["proof", "walletpix", "checkpix", "approve", "reject"].includes(action)) {
+        await interaction.reply({
+          content: "Esse botao foi desativado. Combine o valor e a entrega diretamente com a equipe no ticket.",
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
       if (action === "proof") await handleProofButton(interaction, orderId);
       if (action === "coupon") await handleCouponButton(interaction, orderId);
       if (action === "walletpix") await handleWalletPix(interaction, orderId);
@@ -3751,7 +3724,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleConfigModal(interaction, action);
         return;
       }
-      if (action === "proof-modal") await handleProofModal(interaction, orderId);
+      if (action === "proof-modal") {
+        await interaction.reply({
+          content: "O envio de comprovante foi desativado. Combine tudo pelo ticket.",
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
       if (action === "coupon-modal") await handleCouponModal(interaction, orderId);
     }
   } catch (error) {
